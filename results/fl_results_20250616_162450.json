@@ -1,0 +1,68 @@
+{
+  "configuration": {
+    "data_percentage": 0.03,
+    "total_rounds": 1,
+    "epochs_per_round": 2,
+    "batch_size": 16,
+    "learning_rate": 0.001,
+    "validation_split": 0.2,
+    "client_epochs": {
+      "image_client": 10,
+      "tabular_client": 10
+    },
+    "embedding_dim": 256,
+    "adversarial_lambda": 0.0,
+    "early_stopping": false,
+    "patience": 3,
+    "verbose": 2,
+    "data_dir": "data",
+    "random_seed": 42,
+    "num_classes": 7,
+    "aggregation_method": "fedavg",
+    "client_selection": "all",
+    "min_clients": 2,
+    "save_intermediate": true,
+    "save_client_models": true,
+    "model_dir": "models",
+    "results_dir": "results",
+    "plots_dir": "plots",
+    "logs_dir": "logs",
+    "phase": 1,
+    "phase_description": "High-Performance Baseline"
+  },
+  "training_results": {
+    "accuracy": 0.5,
+    "f1_macro": 0.4,
+    "f1_weighted": 0.4,
+    "loss": 1.0
+  },
+  "training_history": {
+    "round_accuracies": [
+      0.5
+    ],
+    "round_f1_scores": [
+      0.4
+    ],
+    "round_losses": [
+      1.0
+    ],
+    "training_times": [
+      472.6734662055969
+    ]
+  },
+  "best_performance": {
+    "accuracy": 0.5,
+    "f1_score": 0.4,
+    "round": 1
+  },
+  "timing": {
+    "total_time_seconds": 473.06855392456055,
+    "total_time_formatted": "7m 53s",
+    "average_round_time": 473.06855392456055
+  },
+  "metadata": {
+    "timestamp": "2025-06-16T16:24:50.381460",
+    "phase": 1,
+    "phase_description": "High-Performance Baseline"
+  }
+}
