@@ -1,5 +1,17 @@
-# Ignore all contents of /data/
-data/*
+# HAM10000 Dataset - Keep structure but ignore large files
+# Metadata file is small (550KB) - keep it
+!data/HAM10000_metadata.csv
+
+# Ignore large image directories (several GB)
+data/HAM10000_images_part_1/
+data/HAM10000_images_part_2/
+
+# Ignore large CSV files (127MB total)
+data/*.csv
+!data/HAM10000_metadata.csv
+
+# Keep directory structure
+!data/
 !data/.gitkeep
 
 # Byte-compiled / optimized / DLL files
