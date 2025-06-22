@@ -143,4 +143,6 @@ communication/*.h5
 # Ignore old source directory if it exists
 source/
 
+# Ignore generated plots and visualizations
 confusion_matrix_fusion.png
+plots/*.png
