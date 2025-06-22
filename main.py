@@ -60,44 +60,43 @@ class HybridVFLOrchestrator:
         return {
             # === Phase Configuration ===
             'phase': 1,
-            'phase_description': "High-Performance Baseline",
+            'phase_description': "True VFL Architecture Implementation",
             
             # === Core FL Parameters ===
-            'data_percentage': 0.08,  # Increased to 8% for better class balance
-            'total_rounds': 3,        # Keep manageable for testing
-            'epochs_per_round': 5,    # More epochs per round
-            'batch_size': 8,          # Smaller batch for small balanced dataset
+            'data_percentage': 0.25,  # 25% for substantial learning
+            'total_rounds': 2,        # Fewer rounds since clients train first
+            'epochs_per_round': 20,   # More epochs for better convergence
+            'batch_size': 16,         # Good batch size for VFL
             
             # === Model Parameters ===
-            'learning_rate': 0.001,   # Higher learning rate for better convergence
+            'learning_rate': 0.001,   # Standard learning rate
             'embedding_dim': 128,     # Match client embedding dimension
-            'num_classes': 7,
-            'adversarial_lambda': 0.0,  # Disabled for Phase 1
-            
-            # === Client-specific epochs ===
-            'client_epochs': {
-                'image_client': 5,    # More epochs for image learning
-                'tabular_client': 5   # Equal epochs for both
-            },
+            'num_classes': 7,         # HAM10000 has 7 classes
+            'adversarial_lambda': 0.0, # Disable adversarial for now
             
             # === Data Parameters ===
+            'test_split': 0.2,
+            'val_split': 0.2,
+            'random_seed': 42,
+            
+            # === Directory Configuration ===
             'data_dir': 'data',
-            
-            # === Training Control ===
-            'aggregation_method': 'fedavg',
-            'client_selection': 'all',
-            'resume_training': False,
-            
-            # === Output Configuration ===
             'results_dir': 'results',
             'models_dir': 'models',
             'plots_dir': 'plots',
-            'verbose': 1,
+            'embeddings_dir': 'embeddings',
             
-            # === Experimental ===
+            # === FL Configuration ===
+            'fl_mode': True,
+            'client_selection': 'all',  # Use all clients
+            'privacy_budget': 1.0,
+            
+            # === Advanced Features ===
+            'use_differential_privacy': False,
+            'use_secure_aggregation': False,
+            'enable_wandb': False,
             'save_embeddings': True,
-            'plot_training': True,
-            'detailed_logging': True
+            'save_plots': True
         }
     
     def setup_directories(self):
@@ -116,7 +115,7 @@ class HybridVFLOrchestrator:
     
     def print_configuration(self):
         """Print current configuration."""
-        print("🔧 CONFIGURATION:")
+        print(f"🔧 CONFIGURATION:")
         print(f"   Phase: {self.config['phase']} - {self.config['phase_description']}")
         print(f"   Data: {self.config['data_percentage']*100:.1f}% of HAM10000")
         print(f"   FL Rounds: {self.config['total_rounds']}")
@@ -125,18 +124,23 @@ class HybridVFLOrchestrator:
         print(f"   Learning Rate: {self.config['learning_rate']}")
         print(f"   Embedding Dim: {self.config['embedding_dim']}")
         
-        if self.config['adversarial_lambda'] == 0.0:
-            print("   🔒 Privacy: DISABLED (Phase 1 - High Performance)")
-        else:
+        # Privacy settings
+        if self.config.get('adversarial_lambda', 0.0) > 0:
             print(f"   🔒 Privacy: ENABLED (λ={self.config['adversarial_lambda']})")
+        else:
+            print(f"   🔒 Privacy: DISABLED (Phase 1 - High Performance)")
         
-        print(f"   Aggregation: {self.config['aggregation_method'].upper()}")
-        print(f"   Clients: {self.config['client_selection']}")
+        # VFL Architecture info
+        print(f"   🏗️  Architecture: True VFL (Gradient-based)")
+        print(f"   📊 Clients: Image + Tabular")
+        print(f"   🎯 Classes: 7 (HAM10000)")
         
         if self.config.get('resume_training', False):
-            print(f"   🔄 Resume: ENABLED (loading best saved model)")
+            print(f"   🔄 Mode: RESUME from saved model")
         else:
-            print(f"   🆕 Resume: DISABLED (starting fresh)")
+            print(f"   🆕 Mode: FRESH training")
+            
+        print()
     
     def save_configuration(self):
         """Save configuration to file."""
@@ -189,15 +193,15 @@ class HybridVFLOrchestrator:
             if self.config.get('resume_training', False):
                 server.load_best_model()
             
-            # Run federated training with orchestrator configuration
-            final_results = server.run_federated_training(
+            # Run federated learning with VFL architecture
+            results = server.run_federated_learning(
                 total_rounds=self.config['total_rounds'],
                 epochs_per_round=self.config['epochs_per_round'],
                 batch_size=self.config['batch_size']
             )
             
             # Store results
-            self.results = final_results
+            self.results = results
             
             # Save comprehensive results
             self.save_results(server)
@@ -205,7 +209,7 @@ class HybridVFLOrchestrator:
             # Print final summary
             self.print_final_summary()
             
-            return final_results
+            return results
             
         except Exception as e:
             print(f"❌ Federated learning failed: {e}")

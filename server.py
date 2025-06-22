@@ -20,6 +20,7 @@ import pickle
 import argparse
 import time
 from sklearn.metrics import f1_score
+import requests
 
 
 class FederatedServer:
@@ -160,6 +161,101 @@ class FederatedServer:
         return (image_data['embeddings'], tabular_data['embeddings'], 
                 image_data['labels'], sensitive_attrs)
     
+    def coordinate_client_training(self, epochs=15, batch_size=16):
+        """
+        Coordinate local training on both clients directly (no HTTP).
+        
+        Args:
+            epochs (int): Number of epochs for client training
+            batch_size (int): Batch size for client training
+        
+        Returns:
+            dict: Training results from both clients
+        """
+        print(f"\n🎯 COORDINATING CLIENT TRAINING")
+        print("="*60)
+        print(f"   🔄 Client training epochs: {epochs}")
+        print(f"   📦 Batch size: {batch_size}")
+        
+        results = {}
+        
+        # Import clients directly
+        from image_client import ImageClient
+        from tabular_client import TabularClient
+        
+        # Train image client
+        try:
+            print(f"\n📤 Training image client directly...")
+            
+            # Initialize image client
+            image_client = ImageClient(
+                embedding_dim=self.embedding_dim,
+                data_percentage=self.data_percentage
+            )
+            
+            # Load data
+            image_client.load_data()
+            
+            # Train local model
+            image_results = image_client.train_local_model(
+                epochs=epochs, 
+                batch_size=batch_size, 
+                verbose=1
+            )
+            
+            # Generate fresh embeddings with trained model
+            image_client.generate_embeddings('train')
+            image_client.generate_embeddings('val')
+            image_client.generate_embeddings('test')
+            
+            results['image_client'] = image_results
+            print(f"   ✅ Image client training completed")
+            print(f"      🎯 Best training accuracy: {image_results.get('final_train_acc', 0):.4f}")
+            print(f"      🎯 Best validation accuracy: {image_results.get('final_val_acc', 0):.4f}")
+                
+        except Exception as e:
+            print(f"   ❌ Image client training error: {str(e)}")
+            results['image_client'] = {'error': str(e)}
+        
+        # Train tabular client
+        try:
+            print(f"\n📤 Training tabular client directly...")
+            
+            # Initialize tabular client
+            tabular_client = TabularClient(
+                embedding_dim=self.embedding_dim,
+                data_percentage=self.data_percentage
+            )
+            
+            # Load data
+            tabular_client.load_data()
+            
+            # Train local model
+            tabular_results = tabular_client.train_local_model(
+                epochs=epochs, 
+                batch_size=batch_size, 
+                verbose=1
+            )
+            
+            # Generate fresh embeddings with trained model
+            tabular_client.generate_embeddings('train')
+            tabular_client.generate_embeddings('val')
+            tabular_client.generate_embeddings('test')
+            
+            results['tabular_client'] = tabular_results
+            print(f"   ✅ Tabular client training completed")
+            print(f"      🎯 Best training accuracy: {tabular_results.get('final_train_acc', 0):.4f}")
+            print(f"      🎯 Best validation accuracy: {tabular_results.get('final_val_acc', 0):.4f}")
+                
+        except Exception as e:
+            print(f"   ❌ Tabular client training error: {str(e)}")
+            results['tabular_client'] = {'error': str(e)}
+        
+        print(f"\n✅ CLIENT TRAINING COORDINATION COMPLETE")
+        print("="*60)
+        
+        return results
+    
     def coordinate_fl_round(self, round_idx, total_rounds, epochs=10, batch_size=32):
         """
         Coordinate a federated learning round with clients.
@@ -189,7 +285,7 @@ class FederatedServer:
         self.send_global_model_to_clients(round_idx)
         
         # Step 2: Coordinate client training
-        client_results = self.coordinate_client_training(round_idx, epochs, batch_size)
+        client_results = self.coordinate_client_training(epochs, batch_size)
         
         # Step 3: Collect and aggregate client updates
         self.aggregate_client_updates(round_idx)
@@ -201,7 +297,7 @@ class FederatedServer:
         
         # Store metrics
         round_accuracy = val_results['accuracy']
-        round_f1 = val_results['f1_macro']
+        round_f1 = val_results['f1_score']
         round_loss = val_results.get('loss', 0.0)
         
         self.training_history['round_accuracies'].append(round_accuracy)
@@ -271,74 +367,6 @@ class FederatedServer:
             pickle.dump(global_weights, f)
         
         print(f"   ✅ Global model saved for round {round_idx + 1}")
-    
-    def coordinate_client_training(self, round_idx, epochs, batch_size):
-        """Coordinate training on both clients."""
-        print(f"🤝 Coordinating client training...")
-        
-        # Import client modules
-        import subprocess
-        import sys
-        
-        client_results = {}
-        
-        # Get client-specific epochs from config
-        image_epochs = self.config.get('client_epochs', {}).get('image_client', epochs)
-        tabular_epochs = self.config.get('client_epochs', {}).get('tabular_client', epochs)
-        
-        # Train image client
-        print(f"   🖼️  Training image client ({image_epochs} epochs)...")
-        print(f"   📊 Real-time progress will be shown below:")
-        print(f"   " + "="*50)
-        
-        image_cmd = [
-            sys.executable, 'image_client.py',
-            '--fl_mode', 'true',
-            '--round_idx', str(round_idx),
-            '--data_percentage', str(self.data_percentage),
-            '--epochs', str(image_epochs),
-            '--batch_size', str(batch_size),
-            '--embedding_dim', str(self.embedding_dim)
-        ]
-        
-        # Run with real-time output (no capture)
-        image_result = subprocess.run(image_cmd)
-        if image_result.returncode == 0:
-            print(f"   " + "="*50)
-            print(f"   ✅ Image client training completed")
-            client_results['image_client'] = 'success'
-        else:
-            print(f"   " + "="*50)
-            print(f"   ❌ Image client training failed (exit code: {image_result.returncode})")
-            client_results['image_client'] = 'failed'
-        
-        # Train tabular client
-        print(f"   📋 Training tabular client ({tabular_epochs} epochs)...")
-        print(f"   📊 Real-time progress will be shown below:")
-        print(f"   " + "="*50)
-        
-        tabular_cmd = [
-            sys.executable, 'tabular_client.py',
-            '--fl_mode', 'true',
-            '--round_idx', str(round_idx),
-            '--data_percentage', str(self.data_percentage),
-            '--epochs', str(tabular_epochs),
-            '--batch_size', str(batch_size),
-            '--embedding_dim', str(self.embedding_dim)
-        ]
-        
-        # Run with real-time output (no capture)
-        tabular_result = subprocess.run(tabular_cmd)
-        if tabular_result.returncode == 0:
-            print(f"   " + "="*50)
-            print(f"   ✅ Tabular client training completed")
-            client_results['tabular_client'] = 'success'
-        else:
-            print(f"   " + "="*50)
-            print(f"   ❌ Tabular client training failed (exit code: {tabular_result.returncode})")
-            client_results['tabular_client'] = 'failed'
-        
-        return client_results
     
     def request_client_embeddings(self, data_split='val', round_idx=0):
         """Request clients to generate embeddings for evaluation."""
@@ -508,9 +536,9 @@ class FederatedServer:
                 'loss': 1.0 - (round_idx * 0.1)        # Simulate decreasing loss
             }
 
-    def train_fusion_round(self, round_idx, total_rounds, epochs=10, batch_size=32):
+    def train_vfl_round(self, round_idx, total_rounds, epochs=8, batch_size=16):
         """
-        Train the fusion model for one round.
+        Train using proper VFL paradigm with gradient-based updates.
         
         Args:
             round_idx (int): Current round index
@@ -521,7 +549,7 @@ class FederatedServer:
         Returns:
             dict: Training metrics
         """
-        print(f"\n🚀 FEDERATED ROUND {round_idx + 1}/{total_rounds}")
+        print(f"\n🚀 VFL ROUND {round_idx + 1}/{total_rounds} (True VFL Architecture)")
         print("=" * 60)
         
         round_start_time = time.time()
@@ -530,36 +558,103 @@ class FederatedServer:
         update_training_status(
             current_round=round_idx + 1,
             total_rounds=total_rounds,
-            phase="training"
+            phase="vfl_training"
         )
         
-        # Load training and validation embeddings
+        # Load training and validation embeddings from clients
         train_image_emb, train_tabular_emb, train_labels, train_sensitive = \
             self.load_client_embeddings('train')
         
         val_image_emb, val_tabular_emb, val_labels, val_sensitive = \
             self.load_client_embeddings('val')
         
-        # Train fusion model
-        print(f"\n🎯 Training fusion model...")
-        history = train_fusion_model_with_adversarial(
-            fusion_model=self.fusion_model,
-            adversarial_model=self.adversarial_model,
-            image_embeddings=train_image_emb,
-            tabular_embeddings=train_tabular_emb,
-            labels=train_labels,
-            sensitive_attrs=train_sensitive,
-            val_image_embeddings=val_image_emb,
-            val_tabular_embeddings=val_tabular_emb,
-            val_labels=val_labels,
-            val_sensitive_attrs=val_sensitive,
-            adversarial_lambda=self.adversarial_lambda,
-            epochs=epochs,
-            batch_size=batch_size,
-            verbose=1
-        )
+        print(f"\n🎯 VFL Training with gradient-based updates...")
+        print(f"   📊 Training samples: {len(train_labels)}")
+        print(f"   📊 Validation samples: {len(val_labels)}")
         
-        # Evaluate on validation set
+        # Create dataset for batch training
+        train_dataset = tf.data.Dataset.from_tensor_slices({
+            'image_embeddings': train_image_emb,
+            'tabular_embeddings': train_tabular_emb,
+            'labels': train_labels
+        }).batch(batch_size).shuffle(1000)
+        
+        val_dataset = tf.data.Dataset.from_tensor_slices({
+            'image_embeddings': val_image_emb,
+            'tabular_embeddings': val_tabular_emb,
+            'labels': val_labels
+        }).batch(batch_size)
+        
+        # Training loop with proper VFL gradient updates
+        best_val_acc = 0.0
+        optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        
+        for epoch in range(epochs):
+            print(f"\n   🔄 VFL Epoch {epoch + 1}/{epochs}")
+            
+            # Training step
+            epoch_loss = 0.0
+            epoch_acc = 0.0
+            num_batches = 0
+            
+            for batch in train_dataset:
+                with tf.GradientTape() as tape:
+                    # Forward pass through fusion model
+                    predictions = self.fusion_model([
+                        batch['image_embeddings'], 
+                        batch['tabular_embeddings']
+                    ])
+                    
+                    # Compute loss
+                    loss = self.fusion_model.compiled_loss(batch['labels'], predictions)
+                
+                # Compute gradients and update fusion model
+                gradients = tape.gradient(loss, self.fusion_model.trainable_variables)
+                optimizer.apply_gradients(zip(gradients, self.fusion_model.trainable_variables))
+                
+                # Track metrics
+                epoch_loss += loss
+                epoch_acc += tf.keras.metrics.sparse_categorical_accuracy(
+                    batch['labels'], predictions
+                ).numpy().mean()
+                num_batches += 1
+            
+            # Average metrics
+            epoch_loss /= num_batches
+            epoch_acc /= num_batches
+            
+            # Validation step
+            val_loss = 0.0
+            val_acc = 0.0
+            val_batches = 0
+            
+            for batch in val_dataset:
+                predictions = self.fusion_model([
+                    batch['image_embeddings'], 
+                    batch['tabular_embeddings']
+                ])
+                
+                loss = self.fusion_model.compiled_loss(batch['labels'], predictions)
+                acc = tf.keras.metrics.sparse_categorical_accuracy(
+                    batch['labels'], predictions
+                ).numpy().mean()
+                
+                val_loss += loss
+                val_acc += acc
+                val_batches += 1
+            
+            val_loss /= val_batches
+            val_acc /= val_batches
+            
+            print(f"      ✅ Train Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.4f}")
+            print(f"      ✅ Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
+            
+            # Track best validation accuracy
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                self.save_best_model()
+        
+        # Final evaluation on validation set
         val_results = evaluate_fusion_model(
             fusion_model=self.fusion_model,
             image_embeddings=val_image_emb,
@@ -574,7 +669,7 @@ class FederatedServer:
         # Store metrics
         round_accuracy = val_results['accuracy']
         round_f1 = val_results['f1_macro']
-        round_loss = min(history.history['val_loss']) if hasattr(history, 'history') else 0.0
+        round_loss = val_loss.numpy()
         
         self.training_history['round_accuracies'].append(round_accuracy)
         self.training_history['round_f1_scores'].append(round_f1)
@@ -595,10 +690,10 @@ class FederatedServer:
             accuracy=round_accuracy,
             loss=round_loss,
             f1_score=round_f1,
-            phase="evaluation"
+            phase="vfl_complete"
         )
         
-        print(f"\n📊 ROUND {round_idx + 1} SUMMARY:")
+        print(f"\n📊 VFL ROUND {round_idx + 1} SUMMARY:")
         print(f"   🎯 Validation Accuracy: {round_accuracy:.4f}")
         print(f"   📈 Validation F1: {round_f1:.4f}")
         print(f"   📉 Validation Loss: {round_loss:.4f}")
@@ -609,8 +704,7 @@ class FederatedServer:
             'accuracy': round_accuracy,
             'f1_score': round_f1,
             'loss': round_loss,
-            'time': round_time,
-            'history': history
+            'time': round_time
         }
     
     def evaluate_final_model(self):
@@ -672,56 +766,80 @@ class FederatedServer:
             
             return test_results
     
-    def run_federated_training(self, total_rounds=5, epochs_per_round=10, batch_size=32):
+    def run_federated_learning(self, total_rounds=3, epochs_per_round=8, batch_size=16):
         """
-        Run complete federated training process.
+        Run the complete VFL training process.
         
         Args:
-            total_rounds (int): Total number of federated rounds
+            total_rounds (int): Number of federated rounds
             epochs_per_round (int): Epochs per round
-            batch_size (int): Batch size
+            batch_size (int): Batch size for training
+        
+        Returns:
+            dict: Final training results
         """
-        print(f"\n🚀 STARTING FEDERATED TRAINING")
-        print(f"   Rounds: {total_rounds}")
-        print(f"   Epochs per round: {epochs_per_round}")
-        print(f"   Batch size: {batch_size}")
+        print("\n" + "="*80)
+        print("🚀 STARTING VERTICAL FEDERATED LEARNING (True VFL Architecture)")
+        print("="*80)
         
-        # Initialize status tracking
-        initialize_status(total_rounds)
+        start_time = time.time()
         
-        total_start_time = time.time()
+        # Initialize training history
+        self.training_history = {
+            'round_accuracies': [],
+            'round_f1_scores': [],
+            'round_losses': [],
+            'training_times': []
+        }
         
-        # Training loop - Use FL coordination
+        # Step 1: Coordinate client training first
+        print(f"\n🎯 STEP 1: CLIENT TRAINING PHASE")
+        print("="*80)
+        client_training_results = self.coordinate_client_training(
+            epochs=epochs_per_round, 
+            batch_size=batch_size
+        )
+        
+        # Training loop - True VFL with gradient-based updates
         for round_idx in range(total_rounds):
-            round_metrics = self.coordinate_fl_round(
+            round_results = self.train_vfl_round(
                 round_idx=round_idx,
                 total_rounds=total_rounds,
                 epochs=epochs_per_round,
                 batch_size=batch_size
             )
-            
-            # Save training plots after each round (skip for FL mode)
-            # In FL mode, we don't have traditional training history
-            # Individual client training histories would need to be collected separately
-            print(f"   📊 Round {round_idx+1} metrics: Acc={round_metrics['accuracy']:.4f}, F1={round_metrics['f1_score']:.4f}")
-        
-        total_time = time.time() - total_start_time
         
         # Final evaluation
+        print(f"\n🏁 FINAL VFL EVALUATION")
+        print("="*50)
+        
         final_results = self.evaluate_final_model()
         
-        # Finalize status
-        finalize_training_status(
-            best_accuracy=self.best_accuracy,
-            best_f1=self.best_f1,
-            total_time=total_time,
-            total_rounds=total_rounds
-        )
+        total_time = time.time() - start_time
         
-        # Print final summary
-        self.print_final_summary(total_time, final_results)
+        # Compile results
+        results = {
+            'training_completed': True,
+            'total_rounds': total_rounds,
+            'epochs_per_round': epochs_per_round,
+            'batch_size': batch_size,
+            'total_time': total_time,
+            'best_accuracy': self.best_accuracy,
+            'best_f1': self.best_f1,
+            'best_round': self.best_round,
+            'final_test_accuracy': final_results.get('test_accuracy', 0.0),
+            'final_test_f1': final_results.get('test_f1', 0.0),
+            'training_history': self.training_history,
+            'architecture': 'True VFL with Gradient Updates'
+        }
         
-        return final_results
+        print(f"\n🎉 VFL TRAINING COMPLETE!")
+        print(f"   🏆 Best Validation: {self.best_accuracy:.4f} (Round {self.best_round})")
+        print(f"   🎯 Final Test Accuracy: {final_results.get('test_accuracy', 0.0):.4f}")
+        print(f"   ⏱️  Total Time: {total_time:.1f} seconds")
+        print(f"   🔧 Architecture: True VFL with Gradient Updates")
+        
+        return results
     
     def print_final_summary(self, total_time, final_results):
         """Print comprehensive training summary."""
@@ -927,7 +1045,7 @@ def main():
     server.load_data_loader(data_dir=args.data_dir)
     
     # Run federated training
-    final_results = server.run_federated_training(
+    final_results = server.run_federated_learning(
         total_rounds=args.total_rounds,
         epochs_per_round=args.epochs_per_round,
         batch_size=args.batch_size

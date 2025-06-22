@@ -1,0 +1,95 @@
+{
+  "configuration": {
+    "phase": 1,
+    "phase_description": "True VFL Architecture Implementation",
+    "data_percentage": 0.15,
+    "total_rounds": 3,
+    "epochs_per_round": 10,
+    "batch_size": 16,
+    "learning_rate": 0.001,
+    "embedding_dim": 128,
+    "num_classes": 7,
+    "adversarial_lambda": 0.0,
+    "test_split": 0.2,
+    "val_split": 0.2,
+    "random_seed": 42,
+    "data_dir": "data",
+    "results_dir": "results",
+    "models_dir": "models",
+    "plots_dir": "plots",
+    "embeddings_dir": "embeddings",
+    "fl_mode": true,
+    "client_selection": "all",
+    "privacy_budget": 1.0,
+    "use_differential_privacy": false,
+    "use_secure_aggregation": false,
+    "enable_wandb": false,
+    "save_embeddings": true,
+    "save_plots": true,
+    "resume_training": false
+  },
+  "training_results": {
+    "training_completed": true,
+    "total_rounds": 3,
+    "epochs_per_round": 10,
+    "batch_size": 16,
+    "total_time": 38.57342290878296,
+    "best_accuracy": 0.14960629921259844,
+    "best_f1": 0.03718199608610567,
+    "best_round": 1,
+    "final_test_accuracy": 0.0,
+    "final_test_f1": 0.0,
+    "training_history": {
+      "round_accuracies": [
+        0.14960629921259844,
+        0.14173228346456693
+      ],
+      "round_f1_scores": [
+        0.03718199608610567,
+        0.035467980295566505
+      ],
+      "round_losses": [
+        "0.9666569",
+        "0.96665704"
+      ],
+      "training_times": [
+        6.50621223449707,
+        6.354081153869629
+      ]
+    },
+    "architecture": "True VFL with Gradient Updates"
+  },
+  "training_history": {
+    "round_accuracies": [
+      0.14960629921259844,
+      0.14173228346456693
+    ],
+    "round_f1_scores": [
+      0.03718199608610567,
+      0.035467980295566505
+    ],
+    "round_losses": [
+      "0.9666569",
+      "0.96665704"
+    ],
+    "training_times": [
+      6.50621223449707,
+      6.354081153869629
+    ]
+  },
+  "best_performance": {
+    "accuracy": 0.14960629921259844,
+    "f1_score": 0.03718199608610567,
+    "round": 1
+  },
+  "timing": {
+    "total_time_seconds": 38.74284601211548,
+    "total_time_formatted": "0m 39s",
+    "average_round_time": 12.914282004038492
+  },
+  "metadata": {
+    "timestamp": "2025-06-22T19:35:44.978227",
+    "phase": 1,
+    "phase_description": "True VFL Architecture Implementation"
+  }
+}

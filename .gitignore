@@ -142,3 +142,5 @@ communication/*.h5
 
 # Ignore old source directory if it exists
 source/
+
+confusion_matrix_fusion.png

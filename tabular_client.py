@@ -20,6 +20,15 @@ from status import update_client_status
 import pickle
 import argparse
 import time
+from tensorflow.keras.layers import Dense, BatchNormalization, Dropout
+from tensorflow.keras import Model
+
+# Conditional Flask import for server mode
+try:
+    from flask import Flask, request, jsonify
+    FLASK_AVAILABLE = True
+except ImportError:
+    FLASK_AVAILABLE = False
 
 
 class TabularClient:
@@ -385,6 +394,106 @@ class TabularClient:
             f1_score=self.current_f1
         )
 
+    def train_local_model(self, epochs=10, batch_size=16, verbose=1):
+        """
+        Train the local tabular model on client data.
+        
+        Args:
+            epochs (int): Number of training epochs
+            batch_size (int): Batch size for training
+            verbose (int): Verbosity level
+        
+        Returns:
+            dict: Training history and metrics
+        """
+        if not hasattr(self, 'train_data') or self.train_data is None:
+            raise ValueError("No training data available. Load data first.")
+        
+        print(f"\n📊 TRAINING TABULAR CLIENT MODEL")
+        print(f"   📊 Training samples: {len(self.train_data[1])}")
+        print(f"   🔄 Epochs: {epochs}")
+        print(f"   📦 Batch size: {batch_size}")
+        
+        # Prepare training data
+        train_features, train_labels = self.train_data
+        val_features, val_labels = self.val_data if hasattr(self, 'val_data') else (None, None)
+        
+        # Compute class weights for imbalanced data
+        class_weights = compute_class_weights(train_labels, method='balanced')
+        print(f"   ⚖️  Class weights computed for {len(set(train_labels))} classes")
+        
+        # Create a temporary classification model for training
+        encoder_input = self.encoder.input
+        encoder_output = self.encoder.output
+        
+        # Add classification head for training
+        classifier_head = Dense(64, activation='relu', kernel_initializer='he_normal')(encoder_output)
+        classifier_head = BatchNormalization()(classifier_head)
+        classifier_head = Dropout(0.4)(classifier_head)
+        classifier_predictions = Dense(7, activation='softmax', name='predictions')(classifier_head)
+        
+        # Create training model
+        training_model = Model(inputs=encoder_input, outputs=classifier_predictions, name='tabular_training_model')
+        
+        # Compile with appropriate optimizer and loss
+        training_model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+            loss='sparse_categorical_crossentropy',
+            metrics=['accuracy']
+        )
+        
+        print(f"   🏗️  Training model created: {training_model.count_params():,} parameters")
+        
+        # Prepare validation data
+        validation_data = None
+        if val_features is not None and val_labels is not None:
+            validation_data = (val_features, val_labels)
+        
+        # Train the model
+        print(f"   🚀 Starting local training...")
+        history = training_model.fit(
+            train_features, train_labels,
+            batch_size=batch_size,
+            epochs=epochs,
+            validation_data=validation_data,
+            class_weight=class_weights,
+            verbose=verbose,
+            callbacks=[
+                tf.keras.callbacks.EarlyStopping(
+                    monitor='val_accuracy' if validation_data else 'accuracy',
+                    patience=5,
+                    restore_best_weights=True
+                ),
+                tf.keras.callbacks.ReduceLROnPlateau(
+                    monitor='val_loss' if validation_data else 'loss',
+                    factor=0.5,
+                    patience=3,
+                    min_lr=1e-6
+                )
+            ]
+        )
+        
+        # Extract the trained encoder weights
+        for i, layer in enumerate(self.encoder.layers):
+            if i < len(training_model.layers) - 3:  # Exclude the classification head layers
+                layer.set_weights(training_model.layers[i].get_weights())
+        
+        # Evaluate final performance
+        final_train_acc = max(history.history['accuracy'])
+        final_val_acc = max(history.history.get('val_accuracy', [0]))
+        
+        print(f"   ✅ Training completed!")
+        print(f"   🎯 Best training accuracy: {final_train_acc:.4f}")
+        if validation_data:
+            print(f"   🎯 Best validation accuracy: {final_val_acc:.4f}")
+        
+        return {
+            'history': history.history,
+            'final_train_acc': final_train_acc,
+            'final_val_acc': final_val_acc,
+            'epochs_completed': len(history.history['loss'])
+        }
+
 
 def run_fl_round(args):
     """Run a single federated learning round for tabular client."""
@@ -523,4 +632,51 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()
+
+# Flask app for client API (conditional)
+if FLASK_AVAILABLE:
+    app = Flask(__name__)
+    client = None
+    
+    @app.route('/train_local', methods=['POST'])
+    def train_local():
+        """Train local model endpoint."""
+        try:
+            data = request.get_json()
+            epochs = data.get('epochs', 10)
+            batch_size = data.get('batch_size', 16)
+            verbose = data.get('verbose', 1)
+            
+            # Train the local model
+            results = client.train_local_model(epochs=epochs, batch_size=batch_size, verbose=verbose)
+            
+            return jsonify({
+                'status': 'success',
+                'final_train_acc': results['final_train_acc'],
+                'final_val_acc': results['final_val_acc'],
+                'epochs_completed': results['epochs_completed']
+            })
+            
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    @app.route('/generate_embeddings', methods=['POST'])
+    def generate_embeddings():
+        """Generate embeddings for given data split."""
+        try:
+            data = request.get_json()
+            data_split = data.get('data_split', 'train')
+            
+            # Generate embeddings
+            results = client.generate_embeddings(data_split)
+            
+            return jsonify({
+                'status': 'success',
+                'embeddings_saved': True,
+                'split': data_split,
+                'samples': results.get('num_samples', 0)
+            })
+            
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500 

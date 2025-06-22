@@ -1,34 +1,36 @@
 {
-  "timestamp": "2025-06-22T19:10:17.504220",
+  "timestamp": "2025-06-22T19:45:49.302409",
   "system": {
     "python_version": "3.10.11 (v3.10.11:7d4cc5aa85, Apr  4 2023, 19:05:19) [Clang 13.0.0 (clang-1300.0.29.30)]",
     "working_directory": "/Users/mosi-macbook/Documents/Z - Computer Science/00 - Codes/06-HybridVFL"
   },
   "configuration": {
     "phase": 1,
-    "phase_description": "High-Performance Baseline",
-    "data_percentage": 0.08,
-    "total_rounds": 3,
-    "epochs_per_round": 5,
-    "batch_size": 8,
+    "phase_description": "True VFL Architecture Implementation",
+    "data_percentage": 0.25,
+    "total_rounds": 2,
+    "epochs_per_round": 20,
+    "batch_size": 16,
     "learning_rate": 0.001,
     "embedding_dim": 128,
     "num_classes": 7,
     "adversarial_lambda": 0.0,
-    "client_epochs": {
-      "image_client": 5,
-      "tabular_client": 5
-    },
+    "test_split": 0.2,
+    "val_split": 0.2,
+    "random_seed": 42,
     "data_dir": "data",
-    "aggregation_method": "fedavg",
-    "client_selection": "all",
-    "resume_training": false,
     "results_dir": "results",
     "models_dir": "models",
     "plots_dir": "plots",
-    "verbose": 1,
+    "embeddings_dir": "embeddings",
+    "fl_mode": true,
+    "client_selection": "all",
+    "privacy_budget": 1.0,
+    "use_differential_privacy": false,
+    "use_secure_aggregation": false,
+    "enable_wandb": false,
     "save_embeddings": true,
-    "plot_training": true,
-    "detailed_logging": true
+    "save_plots": true,
+    "resume_training": false
   }
 }
