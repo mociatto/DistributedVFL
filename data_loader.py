@@ -111,7 +111,7 @@ class HAM10000DataLoader:
     
     def load_and_preprocess_data(self, data_percentage=1.0):
         """
-        Load and preprocess the HAM10000 dataset.
+        Load and preprocess the HAM10000 dataset with improved sampling.
         
         Args:
             data_percentage (float): Fraction of data to use (for testing)
@@ -129,17 +129,9 @@ class HAM10000DataLoader:
         # Clean and preprocess metadata
         self._preprocess_metadata()
         
-        # Use subset of data if requested
+        # Use subset of data if requested with better sampling strategy
         if data_percentage < 1.0:
-            n_samples = int(len(self.df) * data_percentage)
-            # Stratified sampling to maintain class distribution
-            from sklearn.model_selection import train_test_split
-            self.df, _ = train_test_split(
-                self.df, 
-                train_size=n_samples, 
-                stratify=self.df['dx'], 
-                random_state=self.random_state
-            )
+            self._apply_stratified_sampling(data_percentage)
             print(f"Using {data_percentage*100:.1f}% of data: {len(self.df)} samples")
         
         # Create image paths and verify existence
@@ -327,6 +319,66 @@ class HAM10000DataLoader:
     def get_tabular_dim(self):
         """Get the dimensionality of tabular features."""
         return self.tabular_features.shape[1]
+
+    def _apply_stratified_sampling(self, data_percentage):
+        """
+        Apply balanced stratified sampling ensuring all classes can learn.
+        
+        Args:
+            data_percentage (float): Percentage of data to use
+        """
+        if data_percentage >= 1.0:
+            return  # Use all data
+        
+        # Calculate total samples to keep
+        total_samples = int(len(self.df) * data_percentage)
+        n_classes = len(self.df['dx'].unique())
+        
+        # MUCH MORE BALANCED: Equal samples per class with minimum viable size
+        samples_per_class = max(30, total_samples // n_classes)  # At least 30 per class
+        max_total = samples_per_class * n_classes
+        
+        # If we exceed budget, reduce proportionally but maintain minimum
+        if max_total > total_samples:
+            samples_per_class = max(25, total_samples // n_classes)
+        
+        print(f"   📊 Balanced sampling strategy:")
+        print(f"   - Target samples per class: {samples_per_class}")
+        print(f"   - Maximum total samples: {samples_per_class * n_classes}")
+        
+        sampled_dfs = []
+        total_sampled = 0
+        
+        # Sample equal amounts from each class
+        for class_name in sorted(self.df['dx'].unique()):
+            class_df = self.df[self.df['dx'] == class_name]
+            available_samples = len(class_df)
+            
+            # Take up to samples_per_class, but not more than available
+            samples_to_take = min(samples_per_class, available_samples)
+            
+            if samples_to_take > 0:
+                sampled_class_df = class_df.sample(n=samples_to_take, random_state=42)
+                sampled_dfs.append(sampled_class_df)
+                total_sampled += samples_to_take
+                
+                percentage = (samples_to_take / available_samples) * 100
+                print(f"   📈 Class '{class_name}': {samples_to_take}/{available_samples} samples ({percentage:.1f}%)")
+        
+        # Combine all sampled data
+        self.df = pd.concat(sampled_dfs, ignore_index=True)
+        
+        # Shuffle the combined dataset
+        self.df = self.df.sample(frac=1, random_state=42).reset_index(drop=True)
+        
+        # Verify final distribution
+        final_distribution = self.df['dx'].value_counts().sort_index()
+        print(f"   ✅ Final BALANCED class distribution:")
+        for class_name, count in final_distribution.items():
+            percentage = (count / len(self.df)) * 100
+            print(f"      {class_name}: {count} samples ({percentage:.1f}%)")
+        
+        print(f"   ✅ Balanced stratified sampling complete: {len(self.df)} total samples")
 
 
 def create_data_generator(image_paths, tabular_features, labels, batch_size=32, 

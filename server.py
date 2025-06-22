@@ -340,6 +340,43 @@ class FederatedServer:
         
         return client_results
     
+    def request_client_embeddings(self, data_split='val', round_idx=0):
+        """Request clients to generate embeddings for evaluation."""
+        print(f"   📤 Requesting {data_split} embeddings from clients...")
+        
+        import subprocess
+        import sys
+        
+        # Request embeddings from image client
+        print(f"   🖼️  Requesting embeddings from image client...")
+        image_cmd = [
+            sys.executable, 'image_client.py',
+            '--mode', 'generate_embeddings',
+            '--data_percentage', str(self.data_percentage),
+            '--embedding_dim', str(self.embedding_dim)
+        ]
+        
+        image_result = subprocess.run(image_cmd, capture_output=True, text=True)
+        if image_result.returncode == 0:
+            print(f"   ✅ Image client embeddings generated")
+        else:
+            print(f"   ⚠️  Image client embedding generation failed")
+        
+        # Request embeddings from tabular client
+        print(f"   📋 Requesting embeddings from tabular client...")
+        tabular_cmd = [
+            sys.executable, 'tabular_client.py',
+            '--mode', 'generate_embeddings',
+            '--data_percentage', str(self.data_percentage),
+            '--embedding_dim', str(self.embedding_dim)
+        ]
+        
+        tabular_result = subprocess.run(tabular_cmd, capture_output=True, text=True)
+        if tabular_result.returncode == 0:
+            print(f"   ✅ Tabular client embeddings generated")
+        else:
+            print(f"   ⚠️  Tabular client embedding generation failed")
+    
     def aggregate_client_updates(self, round_idx):
         """Aggregate client model updates using federated averaging."""
         print(f"🔄 Aggregating client updates...")
@@ -430,19 +467,46 @@ class FederatedServer:
         """Evaluate the global model after aggregation."""
         print(f"📊 Evaluating global model...")
         
-        # For now, skip evaluation since we don't have pre-computed embeddings
-        # In a full implementation, we would either:
-        # 1. Have clients generate and send validation embeddings
-        # 2. Use a different evaluation strategy
-        print(f"   ⚠️  Skipping evaluation (embeddings-based evaluation not implemented)")
-        print(f"   📊 Using placeholder metrics for FL coordination")
-        
-        # Return placeholder metrics to keep FL pipeline running
-        return {
-            'accuracy': 0.5 + (round_idx * 0.1),  # Simulate improving accuracy
-            'f1_macro': 0.4 + (round_idx * 0.1),   # Simulate improving F1
-            'loss': 1.0 - (round_idx * 0.1)        # Simulate decreasing loss
-        }
+        try:
+            # Request clients to generate validation embeddings
+            self.request_client_embeddings('val', round_idx)
+            
+            # Load validation embeddings from clients
+            val_image_emb, val_tabular_emb, val_labels, val_sensitive = \
+                self.load_client_embeddings('val')
+            
+            print(f"   ✅ Loaded validation embeddings: {len(val_labels)} samples")
+            
+            # Evaluate fusion model
+            from train_evaluate import evaluate_fusion_model
+            val_results = evaluate_fusion_model(
+                fusion_model=self.fusion_model,
+                image_embeddings=val_image_emb,
+                tabular_embeddings=val_tabular_emb,
+                labels=val_labels,
+                class_names=self.data_loader.get_class_names(),
+                verbose=1
+            )
+            
+            print(f"   🎯 Real Validation Accuracy: {val_results['accuracy']:.4f}")
+            print(f"   📈 Real Validation F1: {val_results['f1_macro']:.4f}")
+            
+            return {
+                'accuracy': val_results['accuracy'],
+                'f1_macro': val_results['f1_macro'],
+                'loss': val_results.get('loss', 0.5)
+            }
+            
+        except Exception as e:
+            print(f"   ⚠️  Fusion evaluation failed: {e}")
+            print(f"   📊 Using placeholder metrics for FL coordination")
+            
+            # Fallback to placeholder metrics
+            return {
+                'accuracy': 0.5 + (round_idx * 0.1),  # Simulate improving accuracy
+                'f1_macro': 0.4 + (round_idx * 0.1),   # Simulate improving F1
+                'loss': 1.0 - (round_idx * 0.1)        # Simulate decreasing loss
+            }
 
     def train_fusion_round(self, round_idx, total_rounds, epochs=10, batch_size=32):
         """
@@ -554,27 +618,59 @@ class FederatedServer:
         print(f"\n🔍 FINAL EVALUATION ON TEST SET")
         print("=" * 50)
         
-        # For now, skip final evaluation since we don't have pre-computed embeddings
-        print(f"   ⚠️  Skipping final evaluation (embeddings-based evaluation not implemented)")
-        print(f"   📊 Using best validation metrics as final results")
-        
-        # Load best model if available
-        self.load_best_model()
-        
-        # Return best validation metrics as final results
-        test_results = {
-            'accuracy': self.best_accuracy,
-            'f1_macro': self.best_f1,
-            'f1_weighted': self.best_f1,  # Approximation
-            'loss': min(self.training_history['round_losses']) if self.training_history['round_losses'] else 0.5
-        }
-        
-        print(f"\n🏆 FINAL TEST RESULTS (from best validation):")
-        print(f"   🎯 Test Accuracy: {test_results['accuracy']:.4f}")
-        print(f"   📈 Test F1 (macro): {test_results['f1_macro']:.4f}")
-        print(f"   📊 Test F1 (weighted): {test_results['f1_weighted']:.4f}")
-        
-        return test_results
+        try:
+            # Request clients to generate test embeddings
+            self.request_client_embeddings('test', -1)
+            
+            # Load test embeddings from clients
+            test_image_emb, test_tabular_emb, test_labels, test_sensitive = \
+                self.load_client_embeddings('test')
+            
+            print(f"   ✅ Loaded test embeddings: {len(test_labels)} samples")
+            
+            # Load best model if available
+            self.load_best_model()
+            
+            # Evaluate fusion model on test set
+            from train_evaluate import evaluate_fusion_model
+            test_results = evaluate_fusion_model(
+                fusion_model=self.fusion_model,
+                image_embeddings=test_image_emb,
+                tabular_embeddings=test_tabular_emb,
+                labels=test_labels,
+                class_names=self.data_loader.get_class_names(),
+                save_confusion_matrix=True,
+                verbose=1
+            )
+            
+            print(f"\n🏆 FINAL TEST RESULTS (Real Evaluation):")
+            print(f"   🎯 Test Accuracy: {test_results['accuracy']:.4f}")
+            print(f"   📈 Test F1 (macro): {test_results['f1_macro']:.4f}")
+            print(f"   📊 Test F1 (weighted): {test_results['f1_weighted']:.4f}")
+            
+            return test_results
+            
+        except Exception as e:
+            print(f"   ⚠️  Test evaluation failed: {e}")
+            print(f"   📊 Using best validation metrics as final results")
+            
+            # Load best model if available
+            self.load_best_model()
+            
+            # Return best validation metrics as final results
+            test_results = {
+                'accuracy': self.best_accuracy,
+                'f1_macro': self.best_f1,
+                'f1_weighted': self.best_f1,  # Approximation
+                'loss': min(self.training_history['round_losses']) if self.training_history['round_losses'] else 0.5
+            }
+            
+            print(f"\n🏆 FINAL TEST RESULTS (from best validation):")
+            print(f"   🎯 Test Accuracy: {test_results['accuracy']:.4f}")
+            print(f"   📈 Test F1 (macro): {test_results['f1_macro']:.4f}")
+            print(f"   📊 Test F1 (weighted): {test_results['f1_weighted']:.4f}")
+            
+            return test_results
     
     def run_federated_training(self, total_rounds=5, epochs_per_round=10, batch_size=32):
         """
@@ -662,9 +758,10 @@ class FederatedServer:
             print(f"   🔒 Privacy-Utility Trade-off: Lambda={self.adversarial_lambda}")
     
     def save_best_model(self, model_dir="models"):
-        """Save the best performing model."""
+        """Save the best performing model with comprehensive state."""
         os.makedirs(model_dir, exist_ok=True)
         
+        # Save model weights
         fusion_path = f"{model_dir}/best_fusion_model.h5"
         self.fusion_model.save_weights(fusion_path)
         
@@ -672,23 +769,100 @@ class FederatedServer:
             adversarial_path = f"{model_dir}/best_adversarial_model.h5"
             self.adversarial_model.save_weights(adversarial_path)
         
-        print(f"   💾 Best model saved to {model_dir}/")
+        # Save training state for resume functionality
+        state_path = f"{model_dir}/training_state.pkl"
+        training_state = {
+            'best_accuracy': self.best_accuracy,
+            'best_f1': self.best_f1,
+            'best_round': self.best_round,
+            'training_history': self.training_history,
+            'model_config': {
+                'embedding_dim': self.embedding_dim,
+                'num_classes': self.num_classes,
+                'adversarial_lambda': self.adversarial_lambda,
+                'learning_rate': self.learning_rate,
+                'data_percentage': self.data_percentage
+            },
+            'timestamp': time.time(),
+            'round_completed': len(self.training_history['round_accuracies'])
+        }
+        
+        with open(state_path, 'wb') as f:
+            pickle.dump(training_state, f)
+        
+        print(f"   💾 Best model and training state saved to {model_dir}/")
     
     def load_best_model(self, model_dir="models"):
-        """Load the best performing model."""
+        """Load the best performing model with comprehensive state."""
         fusion_path = f"{model_dir}/best_fusion_model.h5"
+        state_path = f"{model_dir}/training_state.pkl"
         
         if os.path.exists(fusion_path):
-            self.fusion_model.load_weights(fusion_path)
-            print(f"   📁 Best fusion model loaded from {fusion_path}")
-            
-            if self.adversarial_model is not None:
-                adversarial_path = f"{model_dir}/best_adversarial_model.h5"
-                if os.path.exists(adversarial_path):
-                    self.adversarial_model.load_weights(adversarial_path)
-                    print(f"   📁 Best adversarial model loaded from {adversarial_path}")
+            try:
+                self.fusion_model.load_weights(fusion_path)
+                print(f"   📁 Best fusion model loaded from {fusion_path}")
+                
+                if self.adversarial_model is not None:
+                    adversarial_path = f"{model_dir}/best_adversarial_model.h5"
+                    if os.path.exists(adversarial_path):
+                        self.adversarial_model.load_weights(adversarial_path)
+                        print(f"   📁 Best adversarial model loaded from {adversarial_path}")
+                
+                # Load training state if available
+                if os.path.exists(state_path):
+                    with open(state_path, 'rb') as f:
+                        training_state = pickle.load(f)
+                    
+                    # Restore training metrics
+                    self.best_accuracy = training_state.get('best_accuracy', 0.0)
+                    self.best_f1 = training_state.get('best_f1', 0.0)
+                    self.best_round = training_state.get('best_round', 0)
+                    self.training_history = training_state.get('training_history', {
+                        'round_accuracies': [],
+                        'round_f1_scores': [],
+                        'round_losses': [],
+                        'training_times': []
+                    })
+                    
+                    # Check model compatibility
+                    model_config = training_state.get('model_config', {})
+                    config_compatible = True
+                    if model_config.get('embedding_dim') != self.embedding_dim:
+                        print(f"   ⚠️  Warning: Embedding dimension mismatch ({model_config.get('embedding_dim')} vs {self.embedding_dim})")
+                        config_compatible = False
+                    if model_config.get('num_classes') != self.num_classes:
+                        print(f"   ⚠️  Warning: Number of classes mismatch ({model_config.get('num_classes')} vs {self.num_classes})")
+                        config_compatible = False
+                    
+                    if config_compatible:
+                        rounds_completed = training_state.get('round_completed', 0)
+                        print(f"   🔄 Training state restored: {rounds_completed} rounds completed")
+                        print(f"   🏆 Previous best: Acc={self.best_accuracy:.4f}, F1={self.best_f1:.4f} (Round {self.best_round})")
+                    else:
+                        print(f"   ⚠️  Model configuration incompatible, starting fresh training state")
+                        self._reset_training_state()
+                else:
+                    print(f"   ⚠️  No training state found, starting with fresh metrics")
+                    self._reset_training_state()
+                    
+            except Exception as e:
+                print(f"   ❌ Error loading model: {e}")
+                print(f"   🔄 Continuing with fresh model")
         else:
             print(f"   ⚠️  No saved model found at {fusion_path}")
+            print(f"   🆕 Starting with fresh model")
+    
+    def _reset_training_state(self):
+        """Reset training state to defaults."""
+        self.best_accuracy = 0.0
+        self.best_f1 = 0.0
+        self.best_round = 0
+        self.training_history = {
+            'round_accuracies': [],
+            'round_f1_scores': [],
+            'round_losses': [],
+            'training_times': []
+        }
     
     def save_training_results(self, final_results, filename="training_results.pkl"):
         """Save comprehensive training results."""

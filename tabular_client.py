@@ -122,8 +122,8 @@ class TabularClient:
         val_features = self.val_data['features']
         val_labels = self.val_data['labels']
         
-        # Compute class weights
-        class_weights = compute_class_weights(train_labels, method='sqrt_balanced')
+        # Compute class weights for balanced dataset
+        class_weights = compute_class_weights(train_labels, method='balanced')
         print(f"   ⚖️  Class weights computed for {len(set(train_labels))} classes")
         
         # Create data generators

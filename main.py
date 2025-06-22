@@ -56,82 +56,63 @@ class HybridVFLOrchestrator:
     
     @staticmethod
     def get_default_config():
-        """
-        🎯 MAIN CONFIGURATION SECTION
-        ============================
-        Adjust these values to control the entire training pipeline.
-        All other files will automatically use these settings.
-        """
+        """Get default configuration for HybridVFL."""
         return {
-            # ============================================================================
-            # 🎛️  INDUSTRY DASHBOARD CONTROLS - MODIFY THESE VALUES
-            # ============================================================================
+            # === Phase Configuration ===
+            'phase': 1,
+            'phase_description': "High-Performance Baseline",
             
-            # === Core Training Parameters ===
-            'data_percentage': 0.02,           # 🔢 Dataset portion (0.01=1%, 0.1=10%, 1.0=100%)
-            'total_rounds': 2,                 # 🔄 Number of federated learning rounds
-            'epochs_per_round': 2,             # 📈 Training epochs per FL round
-            'batch_size': 8,                   # 📦 Batch size for training
-            'learning_rate': 0.001,            # 🎯 Learning rate for optimization
-            'validation_split': 0.2,           # 📊 Validation data split (20%)
+            # === Core FL Parameters ===
+            'data_percentage': 0.08,  # Increased to 8% for better class balance
+            'total_rounds': 3,        # Keep manageable for testing
+            'epochs_per_round': 5,    # More epochs per round
+            'batch_size': 8,          # Smaller batch for small balanced dataset
             
-            # === Client-Specific Training ===
+            # === Model Parameters ===
+            'learning_rate': 0.001,   # Higher learning rate for better convergence
+            'embedding_dim': 128,     # Match client embedding dimension
+            'num_classes': 7,
+            'adversarial_lambda': 0.0,  # Disabled for Phase 1
+            
+            # === Client-specific epochs ===
             'client_epochs': {
-                'image_client': 2,             # 🖼️  Image client epochs per round
-                'tabular_client': 2            # 📋 Tabular client epochs per round
+                'image_client': 5,    # More epochs for image learning
+                'tabular_client': 5   # Equal epochs for both
             },
             
-            # === Model Architecture ===
-            'embedding_dim': 256,              # 🧠 Embedding dimension for both modalities
-            'adversarial_lambda': 0.0,         # 🔒 Privacy weight (0.0=disabled, 0.1-1.0=enabled)
-            
-            # === Performance Tuning ===
-            'early_stopping': False,           # ⏹️  Enable early stopping
-            'patience': 3,                     # ⏳ Early stopping patience
-            'verbose': 2,                      # 📢 Logging level (0=quiet, 1=normal, 2=detailed)
-            
-            # ============================================================================
-            # 🔧 ADVANCED CONFIGURATION - Usually don't need to change
-            # ============================================================================
-            
-            # === Data Configuration ===
+            # === Data Parameters ===
             'data_dir': 'data',
-            'random_seed': 42,
-            'num_classes': 7,
             
-            # === FL Strategy Configuration ===
-            'aggregation_method': 'fedavg',     # Federated averaging
-            'client_selection': 'all',          # Use all clients
-            'min_clients': 2,                   # Minimum clients for training
-            
-            # === Experimental Configuration ===
-            'save_intermediate': True,          # Save models after each round
-            'save_client_models': True,         # Save individual client models
+            # === Training Control ===
+            'aggregation_method': 'fedavg',
+            'client_selection': 'all',
+            'resume_training': False,
             
             # === Output Configuration ===
-            'model_dir': 'models',
             'results_dir': 'results',
+            'models_dir': 'models',
             'plots_dir': 'plots',
-            'logs_dir': 'logs',
+            'verbose': 1,
             
-            # === Phase Configuration ===
-            'phase': 1,                         # Current implementation phase
-            'phase_description': 'High-Performance Baseline'
+            # === Experimental ===
+            'save_embeddings': True,
+            'plot_training': True,
+            'detailed_logging': True
         }
     
     def setup_directories(self):
         """Create necessary directories for FL pipeline."""
-        dirs = [
-            self.config['model_dir'],
-            self.config['results_dir'], 
+        directories = [
+            self.config['results_dir'],
+            self.config['models_dir'],
             self.config['plots_dir'],
-            self.config['logs_dir'],
+            'communication',
             'embeddings',
-            'communication'  # For FL weight sharing
+            'status'
         ]
         
-        for dir_name in dirs:
-            Path(dir_name).mkdir(exist_ok=True)
+        for directory in directories:
+            os.makedirs(directory, exist_ok=True)
     
     def print_configuration(self):
         """Print current configuration."""
@@ -151,6 +132,11 @@ class HybridVFLOrchestrator:
         
         print(f"   Aggregation: {self.config['aggregation_method'].upper()}")
         print(f"   Clients: {self.config['client_selection']}")
+        
+        if self.config.get('resume_training', False):
+            print(f"   🔄 Resume: ENABLED (loading best saved model)")
+        else:
+            print(f"   🆕 Resume: DISABLED (starting fresh)")
     
     def save_configuration(self):
         """Save configuration to file."""
@@ -198,6 +184,10 @@ class HybridVFLOrchestrator:
             # Initialize server components
             server.create_models()
             server.load_data_loader(data_dir=self.config['data_dir'])
+            
+            # Resume from previous training if requested
+            if self.config.get('resume_training', False):
+                server.load_best_model()
             
             # Run federated training with orchestrator configuration
             final_results = server.run_federated_training(
@@ -298,7 +288,7 @@ class HybridVFLOrchestrator:
         print(f"\n📁 OUTPUT FILES:")
         print(f"   - Configuration: {self.config['results_dir']}/fl_config.json")
         print(f"   - Results: {self.config['results_dir']}/fl_results_*.json")
-        print(f"   - Models: {self.config['model_dir']}/")
+        print(f"   - Models: {self.config['models_dir']}/")
         print(f"   - Plots: {self.config['plots_dir']}/")
 
 
@@ -325,6 +315,8 @@ def create_config_from_args(args):
         config['data_dir'] = args.data_dir
     if args.verbose is not None:
         config['verbose'] = args.verbose
+    if hasattr(args, 'resume'):
+        config['resume_training'] = args.resume
     
     return config
 
@@ -363,6 +355,10 @@ def main():
                        help='Verbosity level (0=quiet, 1=normal, 2=detailed)')
     parser.add_argument('--config_file', type=str, default=None,
                        help='Load configuration from JSON file')
+    
+    # === Training Control ===
+    parser.add_argument('--resume', action='store_true',
+                       help='Resume training from best saved model')
     
     # === Quick Presets ===
     parser.add_argument('--quick_test', action='store_true',

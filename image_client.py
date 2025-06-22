@@ -122,8 +122,8 @@ class ImageClient:
         val_images = self._load_images(self.val_data['image_paths'])
         val_labels = self.val_data['labels']
         
-        # Compute class weights
-        class_weights = compute_class_weights(train_labels, method='sqrt_balanced')
+        # Compute class weights for balanced dataset
+        class_weights = compute_class_weights(train_labels, method='balanced')
         print(f"   ⚖️  Class weights computed for {len(set(train_labels))} classes")
         
         # Create data generators

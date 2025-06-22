@@ -16,27 +16,40 @@ import os
 
 def compute_class_weights(labels, method='balanced'):
     """
-    Compute class weights to handle imbalanced datasets.
+    Compute class weights to handle imbalanced datasets with improved strategies.
     
     Args:
         labels (np.ndarray): Training labels
-        method (str): Method for computing weights ('balanced' or 'sqrt_balanced')
+        method (str): Method for computing weights ('balanced', 'sqrt_balanced', 'uniform')
     
     Returns:
         dict: Class weights dictionary
     """
     unique_classes = np.unique(labels)
+    class_counts = np.bincount(labels)
     
     if method == 'balanced':
+        # Standard balanced approach - works well for moderately balanced data
         raw_weights = compute_class_weight('balanced', classes=unique_classes, y=labels)
     elif method == 'sqrt_balanced':
         raw_weights = compute_class_weight('balanced', classes=unique_classes, y=labels)
         # Apply square root to moderate extreme weights
-        raw_weights = np.sqrt(raw_weights) / np.mean(np.sqrt(raw_weights))
-    else:
+        raw_weights = np.sqrt(raw_weights)
+    elif method == 'uniform':
+        # Equal weights for all classes - good for balanced datasets
         raw_weights = np.ones(len(unique_classes))
+    else:
+        # Default to balanced
+        raw_weights = compute_class_weight('balanced', classes=unique_classes, y=labels)
     
-    return dict(zip(unique_classes, raw_weights))
+    # Cap extreme weights to prevent training instability
+    max_weight = 5.0  # Prevent any weight from being too extreme
+    raw_weights = np.clip(raw_weights, 0.1, max_weight)
+    
+    # Create class weight dictionary
+    class_weights = {int(cls): float(weight) for cls, weight in zip(unique_classes, raw_weights)}
+    
+    return class_weights
 
 
 def create_image_data_generator(image_paths, labels, batch_size=32, 

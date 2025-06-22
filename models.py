@@ -105,9 +105,10 @@ class TransformerFusionBlock(tf.keras.layers.Layer):
         return out2
 
 
-def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=256):
+def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128):
     """
-    Create enhanced CNN image encoder.
+    Create ultra-lightweight CNN image encoder for small datasets.
+    DRASTICALLY reduced parameters to prevent overfitting.
     
     Args:
         input_shape (tuple): Input image shape
@@ -118,58 +119,37 @@ def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=256):
     """
     inputs = Input(shape=input_shape, name='image_input')
     
-    # Enhanced CNN architecture
-    # Block 1
-    x = Conv2D(64, (3, 3), activation='relu', padding='same', 
+    # Ultra-lightweight CNN - MINIMAL parameters for small data
+    # Block 1 - Very few filters
+    x = Conv2D(16, (5, 5), activation='relu', padding='same', 
                kernel_initializer='he_normal')(inputs)
     x = BatchNormalization()(x)
-    x = Conv2D(64, (3, 3), activation='relu', padding='same', 
-               kernel_initializer='he_normal')(x)
-    x = MaxPooling2D((2, 2))(x)
-    x = Dropout(0.25)(x)
-    
-    # Block 2
-    x = Conv2D(128, (3, 3), activation='relu', padding='same', 
-               kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(128, (3, 3), activation='relu', padding='same', 
-               kernel_initializer='he_normal')(x)
-    x = MaxPooling2D((2, 2))(x)
-    x = Dropout(0.25)(x)
-    
-    # Block 3
-    x = Conv2D(256, (3, 3), activation='relu', padding='same', 
-               kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(256, (3, 3), activation='relu', padding='same', 
-               kernel_initializer='he_normal')(x)
-    x = MaxPooling2D((2, 2))(x)
+    x = MaxPooling2D((4, 4))(x)  # Aggressive pooling
     x = Dropout(0.3)(x)
     
-    # Block 4
-    x = Conv2D(512, (3, 3), activation='relu', padding='same', 
+    # Block 2 - Moderate increase
+    x = Conv2D(32, (3, 3), activation='relu', padding='same', 
                kernel_initializer='he_normal')(x)
     x = BatchNormalization()(x)
-    x = Conv2D(512, (3, 3), activation='relu', padding='same', 
-               kernel_initializer='he_normal')(x)
-    x = MaxPooling2D((2, 2))(x)
-    x = Dropout(0.3)(x)
-    
-    # Global pooling and feature extraction
-    x = GlobalAveragePooling2D()(x)
-    
-    # Dense layers for embedding
-    x = Dense(1024, activation='relu', kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
+    x = MaxPooling2D((4, 4))(x)  # Aggressive pooling
     x = Dropout(0.4)(x)
     
-    x = Dense(512, activation='relu', kernel_initializer='he_normal')(x)
+    # Block 3 - Final conv layer
+    x = Conv2D(64, (3, 3), activation='relu', padding='same', 
+               kernel_initializer='he_normal')(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.3)(x)
+    x = GlobalAveragePooling2D()(x)  # Direct to GAP
+    x = Dropout(0.5)(x)
+    
+    # Minimal dense layers - CRITICAL for small datasets
+    x = Dense(128, activation='relu', kernel_initializer='he_normal')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.5)(x)
     
     # Final embedding layer
     embeddings = Dense(embedding_dim, activation='relu', 
                       name='image_embeddings', kernel_initializer='he_normal')(x)
+    embeddings = Dropout(0.3)(embeddings)
     
     model = Model(inputs=inputs, outputs=embeddings, name='ImageEncoder')
     return model
@@ -177,7 +157,8 @@ def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=256):
 
 def create_tabular_encoder(input_dim, embedding_dim=256):
     """
-    Create enhanced tabular data encoder with attention mechanism.
+    Create lightweight tabular data encoder optimized for small feature sets.
+    Simplified architecture without complex attention for small datasets.
     
     Args:
         input_dim (int): Input feature dimension
@@ -188,53 +169,33 @@ def create_tabular_encoder(input_dim, embedding_dim=256):
     """
     inputs = Input(shape=(input_dim,), name='tabular_input')
     
-    # Feature normalization (will be done in preprocessing, but added for safety)
+    # Feature normalization
     x = BatchNormalization()(inputs)
     
-    # Progressive feature expansion with residual connections
-    x1 = Dense(64, activation='relu', kernel_initializer='he_normal')(x)
-    x1 = BatchNormalization()(x1)
-    x1 = Dropout(0.2)(x1)
+    # Simplified progressive expansion - much smaller for small input_dim
+    x = Dense(32, activation='relu', kernel_initializer='he_normal')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.3)(x)
     
-    x2 = Dense(128, activation='relu', kernel_initializer='he_normal')(x1)
-    x2 = BatchNormalization()(x2)
-    x2 = Dropout(0.2)(x2)
+    x = Dense(64, activation='relu', kernel_initializer='he_normal')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.3)(x)
     
-    x3 = Dense(256, activation='relu', kernel_initializer='he_normal')(x2)
-    x3 = BatchNormalization()(x3)
-    x3 = Dropout(0.3)(x3)
+    x = Dense(128, activation='relu', kernel_initializer='he_normal')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.4)(x)
     
-    # Self-attention for feature importance
-    # Reshape for attention (add sequence dimension) using Keras layers
-    x_reshaped = tf.keras.layers.Lambda(
-        lambda x: tf.expand_dims(x, axis=1)
-    )(x3)  # (batch, 1, 256)
-    
-    attention_layer = MultiHeadAttention(
-        num_heads=4, 
-        key_dim=64, 
-        name='tabular_self_attention'
-    )
-    attended = attention_layer(x_reshaped, x_reshaped)
-    attended = tf.keras.layers.Lambda(
-        lambda x: tf.squeeze(x, axis=1)
-    )(attended)  # Remove sequence dimension
-    
-    # Residual connection
-    x_residual = Dense(256, activation='relu')(x3)
-    x_combined = Add()([attended, x_residual])
-    x_combined = LayerNormalization()(x_combined)
-    
-    # Final embedding layer
+    # Skip complex attention mechanism for small datasets
+    # Direct path to embeddings with regularization
     embeddings = Dense(embedding_dim, activation='relu', 
-                      name='tabular_embeddings', kernel_initializer='he_normal')(x_combined)
-    embeddings = Dropout(0.2)(embeddings)
+                      name='tabular_embeddings', kernel_initializer='he_normal')(x)
+    embeddings = Dropout(0.3)(embeddings)
     
     model = Model(inputs=inputs, outputs=embeddings, name='TabularEncoder')
     return model
 
 
-def create_fusion_model_with_transformer(image_dim=256, tabular_dim=256, 
+def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128, 
                                        num_classes=7, adversarial_lambda=0.0):
     """
     Create enhanced fusion model with Transformer-based attention and controllable adversarial head.
@@ -268,12 +229,12 @@ def create_fusion_model_with_transformer(image_dim=256, tabular_dim=256,
         lambda x: tf.stack(x, axis=1)
     )([projected_image, projected_tabular])
     
-    # Apply Transformer fusion block
+    # Apply Transformer fusion block with REDUCED complexity for small data
     fusion_block = TransformerFusionBlock(
         embed_dim=embed_dim,
-        num_heads=8,
-        ff_dim=embed_dim * 2,
-        dropout_rate=0.1
+        num_heads=4,          # REDUCED: 4 heads instead of 8
+        ff_dim=embed_dim,     # REDUCED: Same as embed_dim instead of 2x
+        dropout_rate=0.3      # INCREASED: More dropout for regularization
     )
     
     # Get attended features
@@ -284,19 +245,15 @@ def create_fusion_model_with_transformer(image_dim=256, tabular_dim=256,
         lambda x: tf.reduce_mean(x, axis=1)
     )(attended_features)
     
-    # Additional fusion layers
-    x = Dense(512, activation='relu', kernel_initializer='he_normal')(fused_features)
+    # SIMPLIFIED fusion layers for small datasets
+    x = Dense(64, activation='relu', kernel_initializer='he_normal')(fused_features)
     x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
+    x = Dropout(0.5)(x)
     
-    x = Dense(256, activation='relu', kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.3)(x)
-    
-    # Final representation before classification
-    final_representation = Dense(128, activation='relu', 
+    # Final representation before classification - MUCH smaller
+    final_representation = Dense(32, activation='relu', 
                                 name='final_representation', kernel_initializer='he_normal')(x)
-    final_representation = Dropout(0.2)(final_representation)
+    final_representation = Dropout(0.4)(final_representation)
     
     # Classification head
     predictions = Dense(num_classes, activation='softmax', 
