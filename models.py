@@ -7,7 +7,8 @@ import tensorflow as tf
 from tensorflow.keras.layers import (
     Input, Dense, Dropout, BatchNormalization, LayerNormalization,
     Conv2D, MaxPooling2D, GlobalAveragePooling2D, Concatenate,
-    MultiHeadAttention, Add, Embedding, GlobalAveragePooling1D
+    MultiHeadAttention, Add, Embedding, GlobalAveragePooling1D,
+    Multiply
 )
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
@@ -225,56 +226,39 @@ def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128,
     image_embeddings = Input(shape=(image_dim,), name='image_embeddings')
     tabular_embeddings = Input(shape=(tabular_dim,), name='tabular_embeddings')
     
-    # Normalize embeddings
+    # Normalize embeddings for better training stability
     image_norm = LayerNormalization()(image_embeddings)
     tabular_norm = LayerNormalization()(tabular_embeddings)
     
-    # Cross-modal attention mechanism
-    # Expand dimensions for attention computation
-    image_expanded = tf.expand_dims(image_norm, axis=1)  # (batch, 1, dim)
-    tabular_expanded = tf.expand_dims(tabular_norm, axis=1)  # (batch, 1, dim)
+    # Simple but effective multimodal fusion with concatenation
+    fused_features = Concatenate()([image_norm, tabular_norm])
     
-    # Stack for multi-head attention
-    stacked_embeddings = tf.concat([image_expanded, tabular_expanded], axis=1)  # (batch, 2, dim)
-    
-    # Multi-head self-attention for cross-modal fusion
-    attention_output = MultiHeadAttention(
-        num_heads=4, 
-        key_dim=32,
-        dropout=0.1,
-        name='cross_modal_attention'
-    )(stacked_embeddings, stacked_embeddings)
-    
-    # Add residual connection
-    attention_output = Add()([stacked_embeddings, attention_output])
-    attention_output = LayerNormalization()(attention_output)
-    
-    # Global pooling to combine attended features
-    fused_features = GlobalAveragePooling1D()(attention_output)
-    
-    # Additional feature processing
+    # Feature processing with proper regularization
     x = Dense(256, activation='relu', kernel_initializer='he_normal')(fused_features)
-    x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
-    
-    x = Dense(128, activation='relu', kernel_initializer='he_normal')(x)
     x = BatchNormalization()(x)
     x = Dropout(0.3)(x)
     
-    # Classification head with better regularization
+    x = Dense(128, activation='relu', kernel_initializer='he_normal')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.2)(x)
+    
+    x = Dense(64, activation='relu', kernel_initializer='he_normal')(x)
+    x = Dropout(0.1)(x)
+    
+    # Classification head
     predictions = Dense(num_classes, activation='softmax', 
-                       kernel_initializer='he_normal', name='predictions')(x)
+                       kernel_initializer='glorot_uniform', name='predictions')(x)
     
     # Create fusion model
     fusion_model = Model(
         inputs=[image_embeddings, tabular_embeddings],
         outputs=predictions,
-        name='enhanced_fusion_model'
+        name='simple_fusion_model'
     )
     
-    # Compile with better optimizer and loss
+    # Compile with stable settings
     fusion_model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-7),
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy']
     )

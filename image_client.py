@@ -477,6 +477,19 @@ class ImageClient:
                     if len(layer.get_weights()) > 0:  # Only copy layers with weights
                         layer.set_weights(training_model.layers[i].get_weights())
             
+            # Generate and save fresh embeddings with trained model
+            print(f"   💾 Saving fresh embeddings with trained model...")
+            
+            # Generate embeddings for all splits
+            train_embeddings, train_labels_emb, train_indices = self.generate_embeddings('train')
+            val_embeddings, val_labels_emb, val_indices = self.generate_embeddings('val')
+            test_embeddings, test_labels_emb, test_indices = self.generate_embeddings('test')
+            
+            # Save embeddings
+            self.save_embeddings(train_embeddings, train_labels_emb, train_indices, 'train')
+            self.save_embeddings(val_embeddings, val_labels_emb, val_indices, 'val')
+            self.save_embeddings(test_embeddings, test_labels_emb, test_indices, 'test')
+            
             # Evaluate final performance
             final_train_acc = max(history.history['accuracy'])
             final_val_acc = max(history.history.get('val_accuracy', [0]))
