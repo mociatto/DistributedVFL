@@ -193,8 +193,9 @@ class FederatedServer:
                 data_percentage=self.data_percentage
             )
             
-            # Load data
+            # Load data and create model
             image_client.load_data()
+            image_client.create_model()
             
             # Train local model
             image_results = image_client.train_local_model(
@@ -203,18 +204,26 @@ class FederatedServer:
                 verbose=1
             )
             
-            # Generate fresh embeddings with trained model
-            image_client.generate_embeddings('train')
-            image_client.generate_embeddings('val')
-            image_client.generate_embeddings('test')
-            
-            results['image_client'] = image_results
-            print(f"   ✅ Image client training completed")
-            print(f"      🎯 Best training accuracy: {image_results.get('final_train_acc', 0):.4f}")
-            print(f"      🎯 Best validation accuracy: {image_results.get('final_val_acc', 0):.4f}")
+            # Check if training was successful
+            if 'error' in image_results:
+                print(f"   ❌ Image client training failed: {image_results['error']}")
+                results['image_client'] = image_results
+            else:
+                # Generate fresh embeddings with trained model
+                print(f"   🔄 Generating fresh embeddings with trained model...")
+                image_client.generate_embeddings('train')
+                image_client.generate_embeddings('val')
+                image_client.generate_embeddings('test')
+                
+                results['image_client'] = image_results
+                print(f"   ✅ Image client training completed successfully")
+                print(f"      🎯 Best training accuracy: {image_results.get('final_train_acc', 0):.4f}")
+                print(f"      🎯 Best validation accuracy: {image_results.get('final_val_acc', 0):.4f}")
                 
         except Exception as e:
             print(f"   ❌ Image client training error: {str(e)}")
+            import traceback
+            print(f"   🔍 Full traceback: {traceback.format_exc()}")
             results['image_client'] = {'error': str(e)}
         
         # Train tabular client
@@ -227,8 +236,9 @@ class FederatedServer:
                 data_percentage=self.data_percentage
             )
             
-            # Load data
+            # Load data and create model
             tabular_client.load_data()
+            tabular_client.create_model()
             
             # Train local model
             tabular_results = tabular_client.train_local_model(
@@ -237,18 +247,26 @@ class FederatedServer:
                 verbose=1
             )
             
-            # Generate fresh embeddings with trained model
-            tabular_client.generate_embeddings('train')
-            tabular_client.generate_embeddings('val')
-            tabular_client.generate_embeddings('test')
-            
-            results['tabular_client'] = tabular_results
-            print(f"   ✅ Tabular client training completed")
-            print(f"      🎯 Best training accuracy: {tabular_results.get('final_train_acc', 0):.4f}")
-            print(f"      🎯 Best validation accuracy: {tabular_results.get('final_val_acc', 0):.4f}")
+            # Check if training was successful
+            if 'error' in tabular_results:
+                print(f"   ❌ Tabular client training failed: {tabular_results['error']}")
+                results['tabular_client'] = tabular_results
+            else:
+                # Generate fresh embeddings with trained model
+                print(f"   🔄 Generating fresh embeddings with trained model...")
+                tabular_client.generate_embeddings('train')
+                tabular_client.generate_embeddings('val')
+                tabular_client.generate_embeddings('test')
+                
+                results['tabular_client'] = tabular_results
+                print(f"   ✅ Tabular client training completed successfully")
+                print(f"      🎯 Best training accuracy: {tabular_results.get('final_train_acc', 0):.4f}")
+                print(f"      🎯 Best validation accuracy: {tabular_results.get('final_val_acc', 0):.4f}")
                 
         except Exception as e:
             print(f"   ❌ Tabular client training error: {str(e)}")
+            import traceback
+            print(f"   🔍 Full traceback: {traceback.format_exc()}")
             results['tabular_client'] = {'error': str(e)}
         
         print(f"\n✅ CLIENT TRAINING COORDINATION COMPLETE")

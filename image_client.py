@@ -397,13 +397,21 @@ class ImageClient:
             raise ValueError("No training data available. Load data first.")
         
         print(f"\n🖼️  TRAINING IMAGE CLIENT MODEL")
-        print(f"   📊 Training samples: {len(self.train_data[1])}")
+        print(f"   📊 Training samples: {len(self.train_data['labels'])}")
         print(f"   🔄 Epochs: {epochs}")
         print(f"   📦 Batch size: {batch_size}")
         
         # Prepare training data
-        train_images, train_labels = self.train_data
-        val_images, val_labels = self.val_data if hasattr(self, 'val_data') else (None, None)
+        train_labels = np.array(self.train_data['labels'])
+        val_labels = np.array(self.val_data['labels']) if hasattr(self, 'val_data') else None
+        
+        # Load images
+        print(f"   📸 Loading training images...")
+        train_images = self._load_images(self.train_data['image_paths'])
+        val_images = None
+        if hasattr(self, 'val_data') and self.val_data is not None:
+            print(f"   📸 Loading validation images...")
+            val_images = self._load_images(self.val_data['image_paths'])
         
         # Compute class weights for imbalanced data
         class_weights = compute_class_weights(train_labels, method='balanced')
@@ -439,49 +447,60 @@ class ImageClient:
         
         # Train the model
         print(f"   🚀 Starting local training...")
-        history = training_model.fit(
-            train_images, train_labels,
-            batch_size=batch_size,
-            epochs=epochs,
-            validation_data=validation_data,
-            class_weight=class_weights,
-            verbose=verbose,
-            callbacks=[
-                tf.keras.callbacks.EarlyStopping(
-                    monitor='val_accuracy' if validation_data else 'accuracy',
-                    patience=5,
-                    restore_best_weights=True
-                ),
-                tf.keras.callbacks.ReduceLROnPlateau(
-                    monitor='val_loss' if validation_data else 'loss',
-                    factor=0.5,
-                    patience=3,
-                    min_lr=1e-6
-                )
-            ]
-        )
-        
-        # Extract the trained encoder weights
-        # Copy weights from training model encoder to our embedding model
-        for i, layer in enumerate(self.encoder.layers):
-            if i < len(training_model.layers) - 3:  # Exclude the classification head layers
-                layer.set_weights(training_model.layers[i].get_weights())
-        
-        # Evaluate final performance
-        final_train_acc = max(history.history['accuracy'])
-        final_val_acc = max(history.history.get('val_accuracy', [0]))
-        
-        print(f"   ✅ Training completed!")
-        print(f"   🎯 Best training accuracy: {final_train_acc:.4f}")
-        if validation_data:
-            print(f"   🎯 Best validation accuracy: {final_val_acc:.4f}")
-        
-        return {
-            'history': history.history,
-            'final_train_acc': final_train_acc,
-            'final_val_acc': final_val_acc,
-            'epochs_completed': len(history.history['loss'])
-        }
+        try:
+            history = training_model.fit(
+                train_images, train_labels,
+                batch_size=batch_size,
+                epochs=epochs,
+                validation_data=validation_data,
+                class_weight=class_weights,
+                verbose=verbose,
+                callbacks=[
+                    tf.keras.callbacks.EarlyStopping(
+                        monitor='val_accuracy' if validation_data else 'accuracy',
+                        patience=5,
+                        restore_best_weights=True
+                    ),
+                    tf.keras.callbacks.ReduceLROnPlateau(
+                        monitor='val_loss' if validation_data else 'loss',
+                        factor=0.5,
+                        patience=3,
+                        min_lr=1e-6
+                    )
+                ]
+            )
+            
+            # Extract the trained encoder weights
+            # Copy weights from training model encoder to our embedding model
+            for i, layer in enumerate(self.encoder.layers):
+                if i < len(training_model.layers) - 3:  # Exclude the classification head layers
+                    if len(layer.get_weights()) > 0:  # Only copy layers with weights
+                        layer.set_weights(training_model.layers[i].get_weights())
+            
+            # Evaluate final performance
+            final_train_acc = max(history.history['accuracy'])
+            final_val_acc = max(history.history.get('val_accuracy', [0]))
+            
+            print(f"   ✅ Training completed successfully!")
+            print(f"   🎯 Best training accuracy: {final_train_acc:.4f}")
+            if validation_data:
+                print(f"   🎯 Best validation accuracy: {final_val_acc:.4f}")
+            
+            return {
+                'history': history.history,
+                'final_train_acc': final_train_acc,
+                'final_val_acc': final_val_acc,
+                'epochs_completed': len(history.history['loss'])
+            }
+            
+        except Exception as e:
+            print(f"   ❌ Training failed: {str(e)}")
+            return {
+                'error': str(e),
+                'final_train_acc': 0.0,
+                'final_val_acc': 0.0,
+                'epochs_completed': 0
+            }
 
 
 def run_fl_round(args):
