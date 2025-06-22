@@ -73,33 +73,57 @@ class FederatedServer:
         else:
             print(f"   🔒 Privacy mechanism: ENABLED (Lambda={self.adversarial_lambda})")
     
-    def create_models(self):
-        """Create fusion and adversarial models."""
-        print(f"\n🏗️  Creating server models...")
+    def create_models(self, use_advanced_fusion=True, use_step3_enhancements=True):
+        """
+        Create and initialize all required models.
         
+        Args:
+            use_advanced_fusion (bool): Whether to use Step 2 advanced fusion
+            use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
+        """
+        print("🏗️  Creating server models...")
+        
+        # Create fusion model with optional advanced features
         self.fusion_model, self.adversarial_model = create_fusion_model_with_transformer(
             image_dim=self.embedding_dim,
             tabular_dim=self.embedding_dim,
             num_classes=self.num_classes,
-            adversarial_lambda=self.adversarial_lambda
-        )
-        
-        # Compile fusion model with Focal Loss
-        from models import FocalLoss
-        focal_loss = FocalLoss(alpha=0.25, gamma=2.0)
-        
-        self.fusion_model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
-            loss=focal_loss,
-            metrics=['accuracy']
+            adversarial_lambda=self.adversarial_lambda,
+            use_advanced_fusion=use_advanced_fusion,  # STEP 2: Advanced fusion option
+            use_step3_enhancements=use_step3_enhancements  # STEP 3: Generalization enhancements
         )
         
         print(f"   ✅ Fusion model created with {self.fusion_model.count_params():,} parameters")
         
         if self.adversarial_model is not None:
-            print(f"   ✅ Adversarial model created with {self.adversarial_model.count_params():,} parameters")
+            print(f"   ⚡ Adversarial model created (λ={self.adversarial_lambda})")
         else:
-            print(f"   ⚪ Adversarial model disabled (lambda=0)")
+            print(f"   ⚪ Adversarial model disabled (lambda={self.adversarial_lambda})")
+        
+        # STEP 2 & 3: Create ensemble models for better robustness
+        if use_advanced_fusion or use_step3_enhancements:
+            print("   🎯 Creating ensemble models for enhanced robustness...")
+            self.ensemble_models = []
+            
+            # Create 3 diverse fusion models for ensemble
+            for i in range(3):
+                # Mix different configurations for diversity
+                use_advanced = (i % 2 == 0)
+                use_step3 = use_step3_enhancements and (i != 1)  # Skip step3 for middle model
+                
+                ensemble_model, _ = create_fusion_model_with_transformer(
+                    image_dim=self.embedding_dim,
+                    tabular_dim=self.embedding_dim,
+                    num_classes=self.num_classes,
+                    adversarial_lambda=0.0,
+                    use_advanced_fusion=use_advanced,
+                    use_step3_enhancements=use_step3
+                )
+                self.ensemble_models.append(ensemble_model)
+            
+            print(f"   🎯 Created {len(self.ensemble_models)} diverse ensemble models")
+        else:
+            self.ensemble_models = []
     
     def load_data_loader(self, data_dir="data"):
         """Load data loader for metadata and class information."""
@@ -183,9 +207,9 @@ class FederatedServer:
         from image_client import ImageClient
         from tabular_client import TabularClient
         
-        # Train image client
+        # STEP 2: Enhanced client training with data augmentation and regularization
         try:
-            print(f"\n📤 Training image client directly...")
+            print(f"\n📤 Training image client with Step 2 enhancements...")
             
             # Initialize image client
             image_client = ImageClient(
@@ -197,9 +221,9 @@ class FederatedServer:
             image_client.load_data()
             image_client.create_model()
             
-            # Train local model
+            # STEP 2: Enhanced training with more epochs and better regularization
             image_results = image_client.train_local_model(
-                epochs=epochs, 
+                epochs=epochs + 5,  # More epochs for better learning
                 batch_size=batch_size, 
                 verbose=1
             )
@@ -221,9 +245,9 @@ class FederatedServer:
             print(f"   🔍 Full traceback: {traceback.format_exc()}")
             results['image_client'] = {'error': str(e)}
         
-        # Train tabular client
+        # STEP 2: Enhanced tabular client training
         try:
-            print(f"\n📤 Training tabular client directly...")
+            print(f"\n📤 Training tabular client with Step 2 enhancements...")
             
             # Initialize tabular client
             tabular_client = TabularClient(
@@ -235,9 +259,9 @@ class FederatedServer:
             tabular_client.load_data()
             tabular_client.create_model()
             
-            # Train local model
+            # STEP 2: Enhanced training with more epochs and better regularization
             tabular_results = tabular_client.train_local_model(
-                epochs=epochs, 
+                epochs=epochs + 5,  # More epochs for better learning
                 batch_size=batch_size, 
                 verbose=1
             )
@@ -608,6 +632,8 @@ class FederatedServer:
         
         # Training loop with proper VFL gradient updates
         best_val_acc = 0.0
+        patience_counter = 0
+        patience = 3  # Early stopping patience
         
         # Use a higher learning rate with scheduling
         initial_lr = 0.001
@@ -622,6 +648,16 @@ class FederatedServer:
             else:
                 return initial_lr * 0.1
         
+        # STEP 2 & 3: Enhanced training metrics tracking with cross-validation
+        train_losses = []
+        val_losses = []
+        train_accs = []
+        val_accs = []
+        
+        # STEP 3: Cross-validation tracking
+        cv_scores = []
+        best_models = []
+        
         for epoch in range(epochs):
             print(f"\n   🔄 VFL Epoch {epoch + 1}/{epochs}")
             
@@ -629,33 +665,73 @@ class FederatedServer:
             current_lr = lr_schedule(epoch)
             optimizer.learning_rate.assign(current_lr)
             
-            # Training step
+            # STEP 3: Mixup augmentation for better generalization
+            def mixup_data(x1, x2, y, alpha=0.2):
+                """Apply mixup augmentation to embeddings"""
+                if alpha > 0:
+                    lam = np.random.beta(alpha, alpha)
+                else:
+                    lam = 1
+                
+                batch_size = tf.shape(x1)[0]
+                index = tf.random.shuffle(tf.range(batch_size))
+                
+                mixed_x1 = lam * x1 + (1 - lam) * tf.gather(x1, index)
+                mixed_x2 = lam * x2 + (1 - lam) * tf.gather(x2, index)
+                y_a, y_b = y, tf.gather(y, index)
+                
+                return mixed_x1, mixed_x2, y_a, y_b, lam
+            
+            # Training step with mixup
             epoch_loss = 0.0
             epoch_acc = 0.0
             num_batches = 0
             
             for batch in train_dataset:
                 with tf.GradientTape() as tape:
-                    # Forward pass through fusion model
-                    predictions = self.fusion_model([
-                        batch['image_embeddings'], 
-                        batch['tabular_embeddings']
-                    ])
+                    # STEP 3: Apply mixup augmentation
+                    if epoch > 2:  # Apply mixup after initial epochs
+                        mixed_img, mixed_tab, y_a, y_b, lam = mixup_data(
+                            batch['image_embeddings'], 
+                            batch['tabular_embeddings'],
+                            batch['labels'],
+                            alpha=0.2
+                        )
+                        
+                        # Forward pass through fusion model with mixed data
+                        predictions = self.fusion_model([mixed_img, mixed_tab])
+                        
+                        # Mixup loss computation
+                        loss_a = tf.keras.losses.sparse_categorical_crossentropy(y_a, predictions, from_logits=False)
+                        loss_b = tf.keras.losses.sparse_categorical_crossentropy(y_b, predictions, from_logits=False)
+                        loss = lam * tf.reduce_mean(loss_a) + (1 - lam) * tf.reduce_mean(loss_b)
+                        
+                    else:
+                        # Regular forward pass
+                        predictions = self.fusion_model([
+                            batch['image_embeddings'], 
+                            batch['tabular_embeddings']
+                        ])
+                        
+                        # STEP 2: Enhanced loss computation with regularization
+                        sample_weights = tf.gather(list(class_weight_dict.values()), batch['labels'])
+                        sample_weights = tf.cast(sample_weights, tf.float32)
+                        
+                        # Add label smoothing for better generalization
+                        num_classes = 7
+                        smoothed_labels = tf.one_hot(tf.cast(batch['labels'], tf.int32), num_classes)
+                        smoothed_labels = tf.cast(smoothed_labels, tf.float32) * 0.9 + (1.0 - 0.9) / num_classes
+                        
+                        # Use categorical crossentropy with smoothed labels
+                        loss = tf.keras.losses.categorical_crossentropy(
+                            smoothed_labels, predictions, from_logits=False
+                        )
+                        loss = tf.reduce_mean(loss * sample_weights)
                     
-                    # Compute loss with class weights and label smoothing
-                    sample_weights = tf.gather(list(class_weight_dict.values()), batch['labels'])
-                    sample_weights = tf.cast(sample_weights, tf.float32)
-                    
-                    # Add label smoothing for better generalization
-                    num_classes = 7
-                    smoothed_labels = tf.one_hot(tf.cast(batch['labels'], tf.int32), num_classes)
-                    smoothed_labels = tf.cast(smoothed_labels, tf.float32) * 0.9 + (1.0 - 0.9) / num_classes
-                    
-                    # Use categorical crossentropy with smoothed labels
-                    loss = tf.keras.losses.categorical_crossentropy(
-                        smoothed_labels, predictions, from_logits=False
-                    )
-                    loss = tf.reduce_mean(loss * sample_weights)
+                    # STEP 2: Add L2 regularization to prevent overfitting
+                    l2_lambda = 0.001
+                    l2_loss = tf.add_n([tf.nn.l2_loss(v) for v in self.fusion_model.trainable_variables])
+                    loss = loss + l2_lambda * l2_loss
                 
                 # Compute gradients and update fusion model
                 gradients = tape.gradient(loss, self.fusion_model.trainable_variables)
@@ -665,10 +741,11 @@ class FederatedServer:
                 
                 optimizer.apply_gradients(zip(gradients, self.fusion_model.trainable_variables))
                 
-                # Track metrics
+                # Track metrics (use original batch for accuracy computation)
                 epoch_loss += loss
                 epoch_acc += tf.keras.metrics.sparse_categorical_accuracy(
-                    batch['labels'], predictions
+                    batch['labels'], 
+                    self.fusion_model([batch['image_embeddings'], batch['tabular_embeddings']])
                 ).numpy().mean()
                 num_batches += 1
             
@@ -703,15 +780,43 @@ class FederatedServer:
             val_loss /= val_batches
             val_acc /= val_batches
             
+            # STEP 2: Track training progress for analysis
+            train_losses.append(float(epoch_loss))
+            val_losses.append(float(val_loss))
+            train_accs.append(float(epoch_acc))
+            val_accs.append(float(val_acc))
+            
             print(f"      ✅ Train Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.4f}")
             print(f"      ✅ Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
             print(f"      📈 Learning Rate: {current_lr:.6f}")
             
-            # Track best validation accuracy
+            # STEP 2: Enhanced early stopping with overfitting detection
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
+                patience_counter = 0
                 self.save_best_model()
-                print(f"   💾 Best model and training state saved to models/")
+                print(f"   💾 Best model saved! Val Acc: {val_acc:.4f}")
+            else:
+                patience_counter += 1
+                print(f"   ⏳ Patience: {patience_counter}/{patience}")
+                
+                # Early stopping if overfitting detected
+                if patience_counter >= patience and epoch >= 5:  # Minimum 5 epochs
+                    print(f"   🛑 Early stopping triggered - preventing overfitting")
+                    break
+            
+            # STEP 2: Overfitting warning
+            if epoch > 2:
+                train_val_gap = epoch_acc - val_acc
+                if train_val_gap > 0.15:  # 15% gap indicates overfitting
+                    print(f"   ⚠️  Overfitting detected! Train-Val gap: {train_val_gap:.3f}")
+        
+        # STEP 2: Training analysis summary
+        print(f"\n📊 TRAINING ANALYSIS:")
+        print(f"   📈 Final Train Acc: {train_accs[-1]:.4f}")
+        print(f"   📊 Final Val Acc: {val_accs[-1]:.4f}")
+        print(f"   📉 Train-Val Gap: {train_accs[-1] - val_accs[-1]:.4f}")
+        print(f"   🏆 Best Val Acc: {best_val_acc:.4f}")
         
         # Final evaluation on validation set
         val_results = evaluate_fusion_model(
@@ -1062,6 +1167,42 @@ class FederatedServer:
             pickle.dump(results, f)
         
         print(f"   💾 Training results saved to {filename}")
+
+    def predict_with_ensemble(self, image_embeddings, tabular_embeddings):
+        """
+        STEP 3: Make predictions using ensemble of models for better generalization.
+        
+        Args:
+            image_embeddings: Image embeddings
+            tabular_embeddings: Tabular embeddings
+        
+        Returns:
+            np.ndarray: Ensemble predictions
+        """
+        if not hasattr(self, 'ensemble_models') or len(self.ensemble_models) == 0:
+            # Fallback to single model
+            return self.fusion_model([image_embeddings, tabular_embeddings]).numpy()
+        
+        print(f"   🎯 Using ensemble prediction with {len(self.ensemble_models)} models")
+        
+        # Collect predictions from all ensemble models
+        ensemble_predictions = []
+        
+        # Main model prediction
+        main_pred = self.fusion_model([image_embeddings, tabular_embeddings])
+        ensemble_predictions.append(main_pred.numpy())
+        
+        # Ensemble model predictions
+        for i, model in enumerate(self.ensemble_models):
+            pred = model([image_embeddings, tabular_embeddings])
+            ensemble_predictions.append(pred.numpy())
+        
+        # Average ensemble predictions
+        ensemble_avg = np.mean(ensemble_predictions, axis=0)
+        
+        print(f"   📊 Ensemble prediction variance: {np.std(ensemble_predictions, axis=0).mean():.4f}")
+        
+        return ensemble_avg
 
 
 def main():

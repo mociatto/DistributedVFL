@@ -98,20 +98,20 @@ class ImageClient:
         print(f"   - Validation samples: {len(self.val_data['image_paths'])}")
         print(f"   - Test samples: {len(self.test_data['image_paths'])}")
     
-    def create_model(self):
-        """Create and compile the image encoder model."""
-        print(f"\n🏗️  Creating image encoder model...")
+    def create_model(self, use_step3_enhancements=True):
+        """
+        Create the image encoder model.
         
+        Args:
+            use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
+        """
+        print("🏗️  Creating image encoder model...")
+        
+        # Create enhanced image encoder
         self.encoder = create_image_encoder(
             input_shape=(224, 224, 3),
-            embedding_dim=self.embedding_dim
-        )
-        
-        # Compile model
-        self.encoder.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
-            loss='sparse_categorical_crossentropy',
-            metrics=['accuracy']
+            embedding_dim=self.embedding_dim,
+            use_step3_enhancements=use_step3_enhancements
         )
         
         print(f"   ✅ Model created with {self.encoder.count_params():,} parameters")

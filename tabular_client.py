@@ -99,22 +99,22 @@ class TabularClient:
         print(f"   - Test samples: {len(self.test_data['features'])}")
         print(f"   - Feature dimension: {self.train_data['features'].shape[1]}")
     
-    def create_model(self):
-        """Create and compile the tabular encoder model."""
-        print(f"\n🏗️  Creating tabular encoder model...")
+    def create_model(self, use_step3_enhancements=True):
+        """
+        Create the tabular encoder model.
+        
+        Args:
+            use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
+        """
+        print("🏗️  Creating tabular encoder model...")
         
         input_dim = self.train_data['features'].shape[1]
         
+        # Create enhanced tabular encoder
         self.encoder = create_tabular_encoder(
             input_dim=input_dim,
-            embedding_dim=self.embedding_dim
-        )
-        
-        # Compile model
-        self.encoder.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
-            loss='sparse_categorical_crossentropy',
-            metrics=['accuracy']
+            embedding_dim=self.embedding_dim,
+            use_step3_enhancements=use_step3_enhancements
         )
         
         print(f"   ✅ Model created with {self.encoder.count_params():,} parameters")

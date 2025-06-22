@@ -56,16 +56,17 @@ class HybridVFLOrchestrator:
     
     @staticmethod
     def get_default_config():
-        """Get default configuration for HybridVFL."""
+        """Get default configuration for the federated learning system."""
+        
         return {
             # === Phase Configuration ===
-            'phase': 1,
-            'phase_description': "True VFL Architecture Implementation",
+            'phase': 3,  # STEP 3: Advanced generalization and robustness
+            'phase_description': "Advanced Generalization with Enhanced Regularization & Ensemble",
             
             # === Core FL Parameters ===
-            'data_percentage': 0.25,  # 25% for substantial learning
-            'total_rounds': 2,        # Fewer rounds since clients train first
-            'epochs_per_round': 20,   # More epochs for better convergence
+            'data_percentage': 0.15,  # Start with smaller data for testing
+            'total_rounds': 2,        # Multiple rounds for better convergence
+            'epochs_per_round': 10,   # Balanced epochs with early stopping
             'batch_size': 16,         # Good batch size for VFL
             
             # === Model Parameters ===
@@ -73,6 +74,23 @@ class HybridVFLOrchestrator:
             'embedding_dim': 128,     # Match client embedding dimension
             'num_classes': 7,         # HAM10000 has 7 classes
             'adversarial_lambda': 0.0, # Disable adversarial for now
+            
+            # === STEP 2: Advanced Features ===
+            'use_advanced_fusion': True,      # Enable transformer fusion
+            'use_early_stopping': True,       # Enable early stopping
+            'use_ensemble': True,             # Enable model ensemble
+            'regularization_strength': 0.001, # L2 regularization
+            'dropout_rate': 0.3,              # Enhanced dropout
+            'label_smoothing': 0.1,           # Label smoothing factor
+            
+            # === STEP 3: Generalization Features ===
+            'use_step3_enhancements': True,   # Enable Step 3 features
+            'use_mixup_augmentation': True,   # Enable mixup
+            'use_noise_injection': True,      # Enable noise injection
+            'use_ensemble_prediction': True,  # Enable ensemble prediction
+            'mixup_alpha': 0.2,               # Mixup parameter
+            'noise_stddev': 0.05,             # Noise injection strength
+            'advanced_dropout_rate': 0.4,     # Enhanced dropout rate
             
             # === Data Parameters ===
             'test_split': 0.2,
@@ -185,8 +203,11 @@ class HybridVFLOrchestrator:
                 config=self.config  # Pass full configuration
             )
             
-            # Initialize server components
-            server.create_models()
+            # Initialize server components with Step 2 & 3 features
+            server.create_models(
+                use_advanced_fusion=self.config.get('use_advanced_fusion', True),
+                use_step3_enhancements=self.config.get('use_step3_enhancements', True)
+            )
             server.load_data_loader(data_dir=self.config['data_dir'])
             
             # Resume from previous training if requested

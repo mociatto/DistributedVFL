@@ -8,7 +8,7 @@ from tensorflow.keras.layers import (
     Input, Dense, Dropout, BatchNormalization, LayerNormalization,
     Conv2D, MaxPooling2D, GlobalAveragePooling2D, Concatenate,
     MultiHeadAttention, Add, Embedding, GlobalAveragePooling1D,
-    Multiply
+    Multiply, GaussianNoise, AlphaDropout
 )
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
@@ -106,29 +106,81 @@ class TransformerFusionBlock(tf.keras.layers.Layer):
         return out2
 
 
-def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128):
+class AdvancedDropout(tf.keras.layers.Layer):
+    """
+    STEP 3: Advanced dropout with scheduled rates for better generalization.
+    Combines multiple dropout techniques for robust training.
+    """
+    
+    def __init__(self, base_rate=0.3, max_rate=0.5, **kwargs):
+        super(AdvancedDropout, self).__init__(**kwargs)
+        self.base_rate = base_rate
+        self.max_rate = max_rate
+        self.dropout_layer = Dropout(base_rate)
+        self.alpha_dropout = AlphaDropout(base_rate * 0.7)
+    
+    def call(self, inputs, training=None):
+        if training:
+            # Apply both regular and alpha dropout for better regularization
+            x = self.dropout_layer(inputs, training=training)
+            x = self.alpha_dropout(x, training=training)
+            return x
+        return inputs
+
+
+class NoiseInjection(tf.keras.layers.Layer):
+    """
+    STEP 3: Adaptive noise injection for improved generalization.
+    Helps models learn robust features that generalize better.
+    """
+    
+    def __init__(self, noise_stddev=0.1, **kwargs):
+        super(NoiseInjection, self).__init__(**kwargs)
+        self.noise_stddev = noise_stddev
+        self.gaussian_noise = GaussianNoise(noise_stddev)
+    
+    def call(self, inputs, training=None):
+        if training:
+            return self.gaussian_noise(inputs, training=training)
+        return inputs
+
+
+def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128, use_step3_enhancements=True):
     """
     Create improved CNN image encoder with better feature extraction.
     
     Args:
         input_shape (tuple): Input image shape
         embedding_dim (int): Output embedding dimension
+        use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
     
     Returns:
         tf.keras.Model: Image encoder model
     """
     inputs = Input(shape=input_shape, name='image_input')
     
+    # STEP 3: Add noise injection for better generalization
+    if use_step3_enhancements:
+        x = NoiseInjection(noise_stddev=0.05)(inputs)
+        print("   🔄 Step 3: Noise injection enabled for image encoder")
+    else:
+        x = inputs
+    
     # Enhanced CNN architecture with better feature extraction
     # Block 1 - Feature detection
     x = Conv2D(32, (3, 3), activation='relu', padding='same', 
-               kernel_initializer='he_normal')(inputs)
+               kernel_initializer='he_normal')(x)
     x = BatchNormalization()(x)
     x = Conv2D(32, (3, 3), activation='relu', padding='same',
                kernel_initializer='he_normal')(x)
     x = BatchNormalization()(x)
     x = MaxPooling2D((2, 2))(x)
-    x = Dropout(0.25)(x)
+    
+    # STEP 3: Enhanced dropout for better generalization
+    if use_step3_enhancements:
+        x = AdvancedDropout(base_rate=0.25)(x)
+    else:
+        x = Dropout(0.25)(x)
     
     # Block 2 - Pattern recognition
     x = Conv2D(64, (3, 3), activation='relu', padding='same',
@@ -138,22 +190,38 @@ def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128):
                kernel_initializer='he_normal')(x)
     x = BatchNormalization()(x)
     x = MaxPooling2D((2, 2))(x)
-    x = Dropout(0.25)(x)
+    
+    # STEP 3: Enhanced dropout
+    if use_step3_enhancements:
+        x = AdvancedDropout(base_rate=0.3)(x)
+    else:
+        x = Dropout(0.25)(x)
     
     # Block 3 - Complex features
     x = Conv2D(128, (3, 3), activation='relu', padding='same',
                kernel_initializer='he_normal')(x)
     x = BatchNormalization()(x)
     x = MaxPooling2D((2, 2))(x)
-    x = Dropout(0.25)(x)
+    
+    # STEP 3: Enhanced dropout
+    if use_step3_enhancements:
+        x = AdvancedDropout(base_rate=0.35)(x)
+    else:
+        x = Dropout(0.25)(x)
     
     # Global feature extraction
     x = GlobalAveragePooling2D()(x)
     
-    # Dense embedding layers
+    # Dense embedding layers with Step 3 enhancements
     x = Dense(256, activation='relu', kernel_initializer='he_normal')(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.5)(x)
+    
+    # STEP 3: More aggressive regularization
+    if use_step3_enhancements:
+        x = AdvancedDropout(base_rate=0.5)(x)
+        x = NoiseInjection(noise_stddev=0.1)(x)
+    else:
+        x = Dropout(0.5)(x)
     
     # Final embedding layer
     embeddings = Dense(embedding_dim, activation='linear', 
@@ -161,17 +229,19 @@ def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128):
     
     model = Model(inputs=inputs, outputs=embeddings, name='image_encoder')
     
-    print(f"   🖼️  Image encoder: {model.count_params():,} parameters")
+    enhancement_note = " (Step 3 enhanced)" if use_step3_enhancements else ""
+    print(f"   🖼️  Image encoder{enhancement_note}: {model.count_params():,} parameters")
     return model
 
 
-def create_tabular_encoder(input_dim, embedding_dim=128):
+def create_tabular_encoder(input_dim, embedding_dim=128, use_step3_enhancements=True):
     """
     Create enhanced tabular encoder with better feature processing.
     
     Args:
         input_dim (int): Input feature dimension
         embedding_dim (int): Output embedding dimension
+        use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
     
     Returns:
         tf.keras.Model: Tabular encoder model
@@ -181,22 +251,43 @@ def create_tabular_encoder(input_dim, embedding_dim=128):
     # Feature normalization and expansion
     x = BatchNormalization()(inputs)
     
+    # STEP 3: Add noise injection for tabular features
+    if use_step3_enhancements:
+        x = NoiseInjection(noise_stddev=0.05)(x)
+        print("   🔄 Step 3: Noise injection enabled for tabular encoder")
+    
     # Progressive feature expansion with residual connections
     # Layer 1 - Feature expansion
     x1 = Dense(64, activation='relu', kernel_initializer='he_normal')(x)
     x1 = BatchNormalization()(x1)
-    x1 = Dropout(0.3)(x1)
+    
+    # STEP 3: Enhanced dropout
+    if use_step3_enhancements:
+        x1 = AdvancedDropout(base_rate=0.3)(x1)
+    else:
+        x1 = Dropout(0.3)(x1)
     
     # Layer 2 - Pattern detection
     x2 = Dense(128, activation='relu', kernel_initializer='he_normal')(x1)
     x2 = BatchNormalization()(x2)
-    x2 = Dropout(0.3)(x2)
+    
+    # STEP 3: Enhanced dropout
+    if use_step3_enhancements:
+        x2 = AdvancedDropout(base_rate=0.35)(x2)
+    else:
+        x2 = Dropout(0.3)(x2)
     
     # Layer 3 - Feature refinement with residual
     x3 = Dense(128, activation='relu', kernel_initializer='he_normal')(x2)
     x3 = BatchNormalization()(x3)
     x3 = Add()([x2, x3])  # Residual connection
-    x3 = Dropout(0.4)(x3)
+    
+    # STEP 3: More aggressive regularization for final layer
+    if use_step3_enhancements:
+        x3 = AdvancedDropout(base_rate=0.4)(x3)
+        x3 = NoiseInjection(noise_stddev=0.1)(x3)
+    else:
+        x3 = Dropout(0.4)(x3)
     
     # Final embedding layer
     embeddings = Dense(embedding_dim, activation='linear', 
@@ -204,12 +295,14 @@ def create_tabular_encoder(input_dim, embedding_dim=128):
     
     model = Model(inputs=inputs, outputs=embeddings, name='tabular_encoder')
     
-    print(f"   📊 Tabular encoder: {model.count_params():,} parameters")
+    enhancement_note = " (Step 3 enhanced)" if use_step3_enhancements else ""
+    print(f"   📊 Tabular encoder{enhancement_note}: {model.count_params():,} parameters")
     return model
 
 
 def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128, 
-                                       num_classes=7, adversarial_lambda=0.0):
+                                       num_classes=7, adversarial_lambda=0.0, 
+                                       use_advanced_fusion=True, use_step3_enhancements=True):
     """
     Create enhanced fusion model with improved cross-attention and better multimodal fusion.
     
@@ -218,6 +311,8 @@ def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128,
         tabular_dim (int): Tabular embedding dimension
         num_classes (int): Number of output classes
         adversarial_lambda (float): Weight for adversarial loss (0 to disable)
+        use_advanced_fusion (bool): Whether to use advanced transformer fusion (Step 2)
+        use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
     
     Returns:
         tuple: (fusion_model, adversarial_model) - adversarial_model is None if lambda=0
@@ -230,30 +325,123 @@ def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128,
     image_norm = LayerNormalization()(image_embeddings)
     tabular_norm = LayerNormalization()(tabular_embeddings)
     
-    # Simple but effective multimodal fusion with concatenation
-    fused_features = Concatenate()([image_norm, tabular_norm])
+    # STEP 3: Add noise injection to embeddings for better generalization
+    if use_step3_enhancements:
+        print("   🔄 Step 3: Embedding noise injection enabled")
+        image_norm = NoiseInjection(noise_stddev=0.05)(image_norm)
+        tabular_norm = NoiseInjection(noise_stddev=0.05)(tabular_norm)
     
-    # Feature processing with proper regularization
-    x = Dense(256, activation='relu', kernel_initializer='he_normal')(fused_features)
-    x = BatchNormalization()(x)
-    x = Dropout(0.3)(x)
+    if use_advanced_fusion:
+        # STEP 2: Advanced Transformer-based Cross-Modal Fusion
+        print("   🔄 Using advanced transformer fusion (Step 2)")
+        
+        # Cross-modal attention mechanism
+        # Expand dimensions for attention computation
+        image_expanded = tf.expand_dims(image_norm, axis=1)  # (batch, 1, dim)
+        tabular_expanded = tf.expand_dims(tabular_norm, axis=1)  # (batch, 1, dim)
+        
+        # Stack for multi-head attention
+        stacked_embeddings = tf.concat([image_expanded, tabular_expanded], axis=1)  # (batch, 2, dim)
+        
+        # Multi-head self-attention for cross-modal fusion
+        attention_output = MultiHeadAttention(
+            num_heads=4, 
+            key_dim=32,
+            dropout=0.15 if use_step3_enhancements else 0.1,  # STEP 3: Higher dropout
+            name='cross_modal_attention'
+        )(stacked_embeddings, stacked_embeddings)
+        
+        # Add residual connection
+        attention_output = Add()([stacked_embeddings, attention_output])
+        attention_output = LayerNormalization()(attention_output)
+        
+        # Global pooling to combine attended features
+        fused_features = GlobalAveragePooling1D()(attention_output)
+        
+        # Additional cross-modal interaction layers
+        x = Dense(256, activation='relu', kernel_initializer='he_normal')(fused_features)
+        x = BatchNormalization()(x)
+        
+        # STEP 3: Enhanced dropout for better generalization
+        if use_step3_enhancements:
+            x = AdvancedDropout(base_rate=0.5)(x)  # More aggressive
+        else:
+            x = Dropout(0.4)(x)
+        
+        x = Dense(128, activation='relu', kernel_initializer='he_normal')(x)
+        x = BatchNormalization()(x)
+        
+        # STEP 3: Enhanced dropout
+        if use_step3_enhancements:
+            x = AdvancedDropout(base_rate=0.4)(x)
+        else:
+            x = Dropout(0.3)(x)
+        
+        # Ensemble with simple concatenation for robustness
+        simple_concat = Concatenate()([image_norm, tabular_norm])
+        simple_features = Dense(128, activation='relu', kernel_initializer='he_normal')(simple_concat)
+        
+        # STEP 3: Enhanced dropout for simple path
+        if use_step3_enhancements:
+            simple_features = AdvancedDropout(base_rate=0.3)(simple_features)
+        else:
+            simple_features = Dropout(0.2)(simple_features)
+        
+        # Combine advanced and simple features
+        combined_features = Add()([x, simple_features])
+        x = LayerNormalization()(combined_features)
+        
+    else:
+        # STEP 1: Simple but effective multimodal fusion with concatenation
+        print("   🔄 Using simple concatenation fusion (Step 1)")
+        fused_features = Concatenate()([image_norm, tabular_norm])
+        
+        # Feature processing with proper regularization
+        x = Dense(256, activation='relu', kernel_initializer='he_normal')(fused_features)
+        x = BatchNormalization()(x)
+        
+        # STEP 3: Enhanced dropout even for simple fusion
+        if use_step3_enhancements:
+            x = AdvancedDropout(base_rate=0.4)(x)
+        else:
+            x = Dropout(0.3)(x)
+        
+        x = Dense(128, activation='relu', kernel_initializer='he_normal')(x)
+        x = BatchNormalization()(x)
+        
+        # STEP 3: Enhanced dropout
+        if use_step3_enhancements:
+            x = AdvancedDropout(base_rate=0.3)(x)
+        else:
+            x = Dropout(0.2)(x)
     
-    x = Dense(128, activation='relu', kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
-    
+    # Final classification layers (common for both approaches)
     x = Dense(64, activation='relu', kernel_initializer='he_normal')(x)
-    x = Dropout(0.1)(x)
+    
+    # STEP 3: Final layer regularization
+    if use_step3_enhancements:
+        x = AdvancedDropout(base_rate=0.2)(x)
+        x = NoiseInjection(noise_stddev=0.05)(x)  # Light noise before prediction
+    else:
+        x = Dropout(0.1)(x)
     
     # Classification head
     predictions = Dense(num_classes, activation='softmax', 
                        kernel_initializer='glorot_uniform', name='predictions')(x)
     
     # Create fusion model
+    if use_step3_enhancements:
+        model_name = 'step3_enhanced_fusion_model'
+        print("   🔄 Step 3: Enhanced fusion model with advanced regularization")
+    elif use_advanced_fusion:
+        model_name = 'advanced_fusion_model'
+    else:
+        model_name = 'simple_fusion_model'
+        
     fusion_model = Model(
         inputs=[image_embeddings, tabular_embeddings],
         outputs=predictions,
-        name='simple_fusion_model'
+        name=model_name
     )
     
     # Compile with stable settings
@@ -263,7 +451,14 @@ def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128,
         metrics=['accuracy']
     )
     
-    print(f"   🔄 Enhanced fusion model: {fusion_model.count_params():,} parameters")
+    enhancement_notes = []
+    if use_advanced_fusion:
+        enhancement_notes.append("Step 2 transformer")
+    if use_step3_enhancements:
+        enhancement_notes.append("Step 3 generalization")
+    
+    note_str = f" ({', '.join(enhancement_notes)})" if enhancement_notes else ""
+    print(f"   🔄 Enhanced fusion model{note_str}: {fusion_model.count_params():,} parameters")
     
     # Adversarial model (disabled for now)
     adversarial_model = None
