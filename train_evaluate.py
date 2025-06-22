@@ -462,29 +462,5 @@ def save_training_plots(history, filename_prefix='training'):
     plt.close()
 
 
-def federated_averaging(client_weights_list, client_data_sizes):
-    """
-    Perform federated averaging of client model weights.
-    
-    Args:
-        client_weights_list (list): List of client model weights
-        client_data_sizes (list): List of client data sizes for weighting
-    
-    Returns:
-        list: Averaged weights
-    """
-    total_size = sum(client_data_sizes)
-    
-    # Initialize averaged weights with zeros
-    averaged_weights = []
-    
-    for layer_idx in range(len(client_weights_list[0])):
-        layer_weights = np.zeros_like(client_weights_list[0][layer_idx])
-        
-        for client_idx, client_weights in enumerate(client_weights_list):
-            weight = client_data_sizes[client_idx] / total_size
-            layer_weights += weight * client_weights[layer_idx]
-        
-        averaged_weights.append(layer_weights)
-    
-    return averaged_weights 
+# REMOVED: federated_averaging function - not needed in true VFL architecture
+# VFL uses embedding-based training, not weight averaging 

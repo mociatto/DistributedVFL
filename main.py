@@ -29,6 +29,7 @@ from pathlib import Path
 # Import project modules
 from server import FederatedServer
 from status import initialize_status, finalize_training_status
+from config import get_config, get_current_phase_config, validate_config
 
 
 class HybridVFLOrchestrator:
@@ -56,66 +57,81 @@ class HybridVFLOrchestrator:
     
     @staticmethod
     def get_default_config():
-        """Get default configuration for the federated learning system."""
+        """Get default configuration from centralized config.py."""
+        # Validate centralized configuration
+        validate_config()
         
-        return {
-            # === Phase Configuration ===
-            'phase': 3,  # STEP 3: Advanced generalization and robustness
-            'phase_description': "Advanced Generalization with Enhanced Regularization & Ensemble",
+        # Get all configuration sections
+        configs = get_config()
+        phase_config = get_current_phase_config()
+        
+        # Merge configurations into single dict for compatibility
+        merged_config = {
+            # Phase information
+            'phase': phase_config['phase'],
+            'phase_description': phase_config['name'],
+            'step': phase_config['step'],
             
-            # === Core FL Parameters ===
-            'data_percentage': 0.15,  # Start with smaller data for testing
-            'total_rounds': 2,        # Multiple rounds for better convergence
-            'epochs_per_round': 10,   # Balanced epochs with early stopping
-            'batch_size': 16,         # Good batch size for VFL
+            # Data configuration
+            'data_percentage': configs['data']['data_percentage'],
+            'num_classes': configs['data']['num_classes'],
+            'test_split': configs['data']['test_ratio'],
+            'val_split': configs['data']['val_ratio'],
+            'random_seed': configs['system']['random_seed'],
             
-            # === Model Parameters ===
-            'learning_rate': 0.001,   # Standard learning rate
-            'embedding_dim': 128,     # Match client embedding dimension
-            'num_classes': 7,         # HAM10000 has 7 classes
-            'adversarial_lambda': 0.0, # Disable adversarial for now
+            # Training configuration
+            'total_rounds': configs['training']['total_rounds'],
+            'epochs_per_round': configs['training']['epochs_per_round'],
+            'batch_size': configs['training']['batch_size'],
+            'learning_rate': configs['training']['learning_rate'],
             
-            # === STEP 2: Advanced Features ===
-            'use_advanced_fusion': True,      # Enable transformer fusion
-            'use_early_stopping': True,       # Enable early stopping
-            'use_ensemble': True,             # Enable model ensemble
-            'regularization_strength': 0.001, # L2 regularization
-            'dropout_rate': 0.3,              # Enhanced dropout
-            'label_smoothing': 0.1,           # Label smoothing factor
+            # Model configuration
+            'embedding_dim': configs['model']['embedding_dim'],
+            'adversarial_lambda': configs['privacy']['adversarial_lambda'],
             
-            # === STEP 3: Generalization Features ===
-            'use_step3_enhancements': True,   # Enable Step 3 features
-            'use_mixup_augmentation': True,   # Enable mixup
-            'use_noise_injection': True,      # Enable noise injection
-            'use_ensemble_prediction': True,  # Enable ensemble prediction
-            'mixup_alpha': 0.2,               # Mixup parameter
-            'noise_stddev': 0.05,             # Noise injection strength
-            'advanced_dropout_rate': 0.4,     # Enhanced dropout rate
+            # Loss configuration
+            'use_contrastive_loss': configs['loss']['use_contrastive_loss'],
+            'contrastive_temperature': configs['loss']['contrastive_temperature'],
+            'classification_weight': configs['loss']['classification_weight'],
+            'contrastive_weight': configs['loss']['contrastive_weight'],
             
-            # === Data Parameters ===
-            'test_split': 0.2,
-            'val_split': 0.2,
-            'random_seed': 42,
+            # Generalization features
+            'use_step3_enhancements': configs['generalization']['use_noise_injection'],
+            'use_mixup_augmentation': configs['loss']['use_mixup'],
+            'use_noise_injection': configs['generalization']['use_noise_injection'],
+            'use_ensemble_prediction': configs['generalization']['use_ensemble'],
+            'mixup_alpha': configs['loss']['mixup_alpha'],
+            'noise_stddev': configs['generalization']['noise_stddev'],
+            'advanced_dropout_rate': configs['generalization']['spatial_dropout_rate'],
             
-            # === Directory Configuration ===
+            # Training features
+            'use_early_stopping': configs['training']['use_early_stopping'],
+            'use_ensemble': configs['model']['fusion_model']['use_ensemble'],
+            'regularization_strength': configs['loss']['l2_lambda'],
+            'dropout_rate': configs['model']['fusion_model']['dropout_rate'],
+            'label_smoothing': configs['loss']['label_smoothing_factor'],
+            
+            # Directory configuration
             'data_dir': 'data',
-            'results_dir': 'results',
-            'models_dir': 'models',
-            'plots_dir': 'plots',
-            'embeddings_dir': 'embeddings',
+            'results_dir': configs['system']['results_dir'],
+            'models_dir': configs['system']['models_dir'],
+            'plots_dir': configs['system']['plots_dir'],
+            'embeddings_dir': configs['system']['embeddings_dir'],
             
-            # === FL Configuration ===
+            # FL configuration
             'fl_mode': True,
-            'client_selection': 'all',  # Use all clients
+            'client_selection': 'all',
             'privacy_budget': 1.0,
             
-            # === Advanced Features ===
-            'use_differential_privacy': False,
-            'use_secure_aggregation': False,
+            # Advanced features
+            'use_differential_privacy': configs['privacy']['use_differential_privacy'],
+            'use_secure_aggregation': configs['privacy']['use_secure_aggregation'],
             'enable_wandb': False,
-            'save_embeddings': True,
-            'save_plots': True
+            'save_embeddings': configs['system']['save_embeddings'],
+            'save_plots': configs['system']['save_plots']
         }
+        
+        return merged_config
     
     def setup_directories(self):
         """Create necessary directories for FL pipeline."""

@@ -438,90 +438,13 @@ class FederatedServer:
             print(f"   ⚠️  Tabular client embedding generation failed")
     
     def aggregate_client_updates(self, round_idx):
-        """Aggregate client model updates using federated averaging."""
-        print(f"🔄 Aggregating client updates...")
-        
-        fl_comm_dir = "communication"
-        
-        # Load client updates
-        client_updates = {}
-        
-        # Load image client update
-        image_update_file = f"{fl_comm_dir}/image_client_update_round_{round_idx}.pkl"
-        if os.path.exists(image_update_file):
-            with open(image_update_file, 'rb') as f:
-                client_updates['image'] = pickle.load(f)
-            print(f"   📁 Image client update loaded")
-        
-        # Load tabular client update
-        tabular_update_file = f"{fl_comm_dir}/tabular_client_update_round_{round_idx}.pkl"
-        if os.path.exists(tabular_update_file):
-            with open(tabular_update_file, 'rb') as f:
-                client_updates['tabular'] = pickle.load(f)
-            print(f"   📁 Tabular client update loaded")
-        
-        # Perform federated averaging
-        if len(client_updates) >= 2:
-            self.federated_averaging(client_updates)
-            print(f"   ✅ Federated averaging completed")
-        else:
-            print(f"   ⚠️  Insufficient client updates for aggregation")
+        """VFL does not use client weight aggregation - clients provide embeddings only."""
+        print(f"🔄 VFL Architecture: No weight aggregation needed")
+        print(f"   ✅ True VFL uses embedding-based training, not weight averaging")
+        print(f"   📊 Clients provide embeddings, server trains fusion model")
     
-    def federated_averaging(self, client_updates):
-        """Perform federated averaging of client embedding layer updates."""
-        # Collect client embedding weights
-        client_weights = []
-        client_samples = []
-        
-        for client_name, update_data in client_updates.items():
-            if 'model_weights' in update_data:
-                client_weights.append(update_data['model_weights'])
-                client_samples.append(update_data.get('num_samples', 1))
-        
-        if not client_weights:
-            print(f"   ⚠️  No client weights to aggregate")
-            return
-        
-        # Verify all clients have compatible embedding layer structure
-        if len(client_weights) >= 2:
-            for i, weights in enumerate(client_weights):
-                if len(weights) != 2:  # Should be [weight_matrix, bias_vector]
-                    print(f"   ⚠️  Client {i} has unexpected weight structure: {len(weights)} layers")
-                    return
-                
-                # Check output dimensions match (bias should be same size)
-                if i > 0:
-                    if weights[1].shape != client_weights[0][1].shape:
-                        print(f"   ⚠️  Client {i} embedding output dimensions don't match")
-                        return
-                    # Input dimensions can differ (e.g., 512->256 vs 256->256)
-                    if weights[0].shape[1] != client_weights[0][0].shape[1]:
-                        print(f"   ⚠️  Client {i} embedding output dimensions don't match")
-                        return
-            
-            print(f"   ✅ All clients have compatible embedding layers (output dim: {client_weights[0][1].shape[0]})")
-        
-        # Since clients have different architectures, we'll use knowledge distillation approach
-        # Instead of averaging weights, we'll compute average bias (which represents learned features)
-        total_samples = sum(client_samples)
-        
-        # Average only the bias terms (which represent learned feature representations)
-        aggregated_bias = None
-        
-        for client_idx, (weights, samples) in enumerate(zip(client_weights, client_samples)):
-            weight_contribution = (samples / total_samples)
-            
-            if aggregated_bias is None:
-                aggregated_bias = weights[1] * weight_contribution  # Only bias
-            else:
-                aggregated_bias += weights[1] * weight_contribution
-        
-        # Store aggregated knowledge (bias only) for knowledge transfer
-        self.aggregated_embedding_knowledge = aggregated_bias
-        
-        print(f"   🔄 Embedding knowledge aggregated from {len(client_weights)} clients")
-        print(f"   📊 Aggregated bias (knowledge): {aggregated_bias.shape}")
-        print(f"   💡 Note: Weight matrices not averaged due to different architectures")
+    # REMOVED: federated_averaging method - not needed in true VFL architecture
+    # VFL uses embedding-based training, not weight averaging
     
     def evaluate_global_model(self, round_idx):
         """Evaluate the global fusion model on validation set."""
@@ -723,10 +646,27 @@ class FederatedServer:
                         smoothed_labels = tf.cast(smoothed_labels, tf.float32) * 0.9 + (1.0 - 0.9) / num_classes
                         
                         # Use categorical crossentropy with smoothed labels
-                        loss = tf.keras.losses.categorical_crossentropy(
+                        classification_loss = tf.keras.losses.categorical_crossentropy(
                             smoothed_labels, predictions, from_logits=False
                         )
-                        loss = tf.reduce_mean(loss * sample_weights)
+                        classification_loss = tf.reduce_mean(classification_loss * sample_weights)
+                        
+                        # STEP 2: Add contrastive loss for better embedding alignment
+                        try:
+                            from models import nt_xent_loss
+                            contrastive_loss = nt_xent_loss(
+                                batch['image_embeddings'], 
+                                batch['tabular_embeddings'],
+                                temperature=0.5
+                            )
+                            
+                            # Combined loss: classification + contrastive alignment
+                            alpha = 0.7  # Weight for classification vs contrastive loss
+                            loss = alpha * classification_loss + (1 - alpha) * contrastive_loss
+                            
+                        except Exception as e:
+                            print(f"   ⚠️  Contrastive loss failed: {e}")
+                            loss = classification_loss
                     
                     # STEP 2: Add L2 regularization to prevent overfitting
                     l2_lambda = 0.001

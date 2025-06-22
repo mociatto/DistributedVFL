@@ -1,9 +1,4 @@
 {
-  "timestamp": "2025-06-23T00:11:08.632562",
-  "system": {
-    "python_version": "3.10.11 (v3.10.11:7d4cc5aa85, Apr  4 2023, 19:05:19) [Clang 13.0.0 (clang-1300.0.29.30)]",
-    "working_directory": "/Users/mosi-macbook/Documents/Z - Computer Science/00 - Codes/06-HybridVFL"
-  },
   "configuration": {
     "phase": 3,
     "phase_description": "Advanced Generalization & Robustness",
@@ -49,5 +44,61 @@
     "save_embeddings": true,
     "save_plots": true,
     "resume_training": false
+  },
+  "training_results": {
+    "training_completed": true,
+    "total_rounds": 2,
+    "epochs_per_round": 5,
+    "batch_size": 16,
+    "total_time": 532.0073781013489,
+    "best_accuracy": 0.4330708661417323,
+    "best_f1": 0.43311299298141404,
+    "best_round": 1,
+    "final_test_accuracy": 0.0,
+    "final_test_f1": 0.0,
+    "training_history": {
+      "round_accuracies": [
+        0.4330708661417323
+      ],
+      "round_f1_scores": [
+        0.43311299298141404
+      ],
+      "round_losses": [
+        "1.5422326"
+      ],
+      "training_times": [
+        7.247413873672485
+      ]
+    },
+    "architecture": "True VFL with Gradient Updates"
+  },
+  "training_history": {
+    "round_accuracies": [
+      0.4330708661417323
+    ],
+    "round_f1_scores": [
+      0.43311299298141404
+    ],
+    "round_losses": [
+      "1.5422326"
+    ],
+    "training_times": [
+      7.247413873672485
+    ]
+  },
+  "best_performance": {
+    "accuracy": 0.4330708661417323,
+    "f1_score": 0.43311299298141404,
+    "round": 1
+  },
+  "timing": {
+    "total_time_seconds": 532.425943851471,
+    "total_time_formatted": "8m 52s",
+    "average_round_time": 266.2129719257355
+  },
+  "metadata": {
+    "timestamp": "2025-06-23T00:20:01.058523",
+    "phase": 3,
+    "phase_description": "Advanced Generalization & Robustness"
   }
 }

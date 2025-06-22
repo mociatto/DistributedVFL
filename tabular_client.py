@@ -357,42 +357,8 @@ class TabularClient:
         print(f"   ⚠️  Global model file not found: {global_model_file}")
         return None
     
-    def save_model_update(self, round_idx, num_samples):
-        """Save model update for server aggregation."""
-        fl_comm_dir = "communication"
-        os.makedirs(fl_comm_dir, exist_ok=True)
-        
-        # Get only the final embedding layer weights (last 2 layers: weights + bias)
-        all_weights = self.encoder.get_weights()
-        embedding_weights = all_weights[-2:]  # Final Dense layer weights and bias
-        
-        # Prepare model update with only embedding layer weights
-        update_data = {
-            'client_id': self.client_id,
-            'round': round_idx,
-            'model_weights': embedding_weights,  # Only final embedding layer
-            'num_samples': num_samples,
-            'performance': {
-                'accuracy': self.current_accuracy,
-                'f1_score': self.current_f1,
-                'loss': self.current_loss
-            }
-        }
-        
-        # Save update
-        update_file = f"{fl_comm_dir}/{self.client_id}_update_round_{round_idx}.pkl"
-        with open(update_file, 'wb') as f:
-            pickle.dump(update_data, f)
-        
-        print(f"   💾 Model update saved: {update_file} (embedding layer only)")
-        
-        # Update status
-        update_client_status(
-            client_id=self.client_id,
-            weights_updated=True,
-            accuracy=self.current_accuracy,
-            f1_score=self.current_f1
-        )
+    # REMOVED: save_model_update method - not needed in true VFL architecture  
+    # VFL clients only provide embeddings, not weight updates
 
     def train_local_model(self, epochs=10, batch_size=16, verbose=1):
         """
@@ -552,7 +518,7 @@ def run_fl_round(args):
         num_samples = len(client.train_data['labels'])
         
         # Save model update for server
-        client.save_model_update(args.round_idx, num_samples)
+        # VFL architecture: No weight updates needed, only embeddings
         
         print(f"✅ FL Round {args.round_idx + 1} completed")
         print(f"   📊 Local accuracy: {client.current_accuracy:.4f}")

@@ -623,3 +623,79 @@ def create_end_to_end_model(image_shape=(224, 224, 3), tabular_dim=3,
     )
     
     return end_to_end_model 
+
+
+def nt_xent_loss(z_i, z_j, temperature=0.5, batch_size=None):
+    """
+    Simplified contrastive loss for multimodal embedding alignment.
+    Encourages image and tabular embeddings from same sample to be similar.
+    
+    Args:
+        z_i: Image embeddings [batch_size, embedding_dim]
+        z_j: Tabular embeddings [batch_size, embedding_dim]  
+        temperature: Temperature parameter for scaling
+        batch_size: Batch size (auto-detected if None)
+    
+    Returns:
+        Contrastive loss value
+    """
+    if batch_size is None:
+        batch_size = tf.shape(z_i)[0]
+    
+    # L2 normalize embeddings
+    z_i = tf.nn.l2_normalize(z_i, axis=1)
+    z_j = tf.nn.l2_normalize(z_j, axis=1)
+    
+    # Compute positive similarity (same sample pairs)
+    positive_sim = tf.reduce_sum(z_i * z_j, axis=1) / temperature
+    
+    # Compute negative similarities (different sample pairs)
+    # For each image embedding, compute similarity with all tabular embeddings
+    neg_sim_matrix = tf.matmul(z_i, z_j, transpose_b=True) / temperature
+    
+    # Create mask to exclude positive pairs from negatives
+    batch_size_float = tf.cast(batch_size, tf.float32)
+    mask = tf.ones([batch_size, batch_size]) - tf.eye(batch_size)
+    
+    # Apply mask and compute negative similarities
+    masked_neg_sim = neg_sim_matrix * mask
+    
+    # Compute contrastive loss using logsumexp for numerical stability
+    neg_logits = tf.reduce_logsumexp(masked_neg_sim, axis=1)
+    pos_logits = positive_sim
+    
+    # Contrastive loss: -log(exp(pos) / (exp(pos) + sum(exp(neg))))
+    loss = -pos_logits + tf.math.log(tf.exp(pos_logits) + tf.exp(neg_logits))
+    
+    return tf.reduce_mean(loss)
+
+
+def contrastive_fusion_loss(y_true, y_pred, image_emb, tabular_emb, 
+                           alpha=0.7, temperature=0.5):
+    """
+    Combined classification and contrastive loss for improved multimodal learning.
+    
+    Args:
+        y_true: True labels
+        y_pred: Predicted logits
+        image_emb: Image embeddings
+        tabular_emb: Tabular embeddings
+        alpha: Weight for classification loss (1-alpha for contrastive)
+        temperature: Temperature for NT-Xent loss
+    
+    Returns:
+        Combined loss value
+    """
+    # Classification loss
+    classification_loss = tf.keras.losses.sparse_categorical_crossentropy(
+        y_true, y_pred, from_logits=False
+    )
+    classification_loss = tf.reduce_mean(classification_loss)
+    
+    # Contrastive loss for better embedding alignment
+    contrastive_loss = nt_xent_loss(image_emb, tabular_emb, temperature)
+    
+    # Combined loss
+    total_loss = alpha * classification_loss + (1 - alpha) * contrastive_loss
+    
+    return total_loss 
