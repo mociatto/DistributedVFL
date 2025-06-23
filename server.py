@@ -919,6 +919,32 @@ class FederatedServer:
         
         final_results = self.evaluate_final_model()
         
+        # Check validation-test consistency
+        if hasattr(self, 'best_val_accuracy'):
+            from train_evaluate import check_validation_test_consistency, suggest_regularization_improvements
+            
+            test_acc = final_results.get('test_accuracy', 0.0)
+            consistency_analysis = check_validation_test_consistency(
+                self.best_val_accuracy,
+                test_acc
+            )
+            
+            print(f"\n🔍 VALIDATION-TEST CONSISTENCY ANALYSIS")
+            print("="*60)
+            print(f"   📊 Validation Accuracy: {consistency_analysis['validation_accuracy']:.4f}")
+            print(f"   🎯 Test Accuracy: {consistency_analysis['test_accuracy']:.4f}")
+            print(f"   📉 Gap: {consistency_analysis['gap_percentage']:.1f}%")
+            print(f"   🚨 Severity: {consistency_analysis['severity'].upper()}")
+            print(f"   💡 {consistency_analysis['recommendation']}")
+            
+            if consistency_analysis['is_overfitted']:
+                suggestions = suggest_regularization_improvements(consistency_analysis['gap_percentage'])
+                print(f"\n🔧 IMPROVEMENT SUGGESTIONS:")
+                for suggestion in suggestions:
+                    print(f"      {suggestion}")
+            
+            final_results['consistency_analysis'] = consistency_analysis
+        
         total_time = time.time() - start_time
         
         # Compile results

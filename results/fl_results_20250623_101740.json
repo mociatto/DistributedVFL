@@ -1,0 +1,104 @@
+{
+  "configuration": {
+    "phase": 3,
+    "phase_description": "Advanced Generalization & Robustness",
+    "step": 3,
+    "data_percentage": 0.05,
+    "num_classes": 7,
+    "test_split": 0.15,
+    "val_split": 0.15,
+    "random_seed": 42,
+    "total_rounds": 1,
+    "epochs_per_round": 3,
+    "batch_size": 16,
+    "learning_rate": 0.001,
+    "embedding_dim": 256,
+    "adversarial_lambda": 0.0,
+    "use_contrastive_loss": true,
+    "contrastive_temperature": 0.5,
+    "classification_weight": 0.7,
+    "contrastive_weight": 0.3,
+    "use_step3_enhancements": true,
+    "use_mixup_augmentation": true,
+    "use_noise_injection": true,
+    "use_ensemble_prediction": true,
+    "mixup_alpha": 0.4,
+    "noise_stddev": 0.1,
+    "advanced_dropout_rate": 0.2,
+    "use_early_stopping": true,
+    "use_ensemble": true,
+    "regularization_strength": 0.01,
+    "dropout_rate": 0.6,
+    "label_smoothing": 0.1,
+    "data_dir": "data",
+    "results_dir": "results",
+    "models_dir": "models",
+    "plots_dir": "plots",
+    "embeddings_dir": "embeddings",
+    "fl_mode": true,
+    "client_selection": "all",
+    "privacy_budget": 1.0,
+    "use_differential_privacy": false,
+    "use_secure_aggregation": false,
+    "enable_wandb": false,
+    "save_embeddings": true,
+    "save_plots": true,
+    "resume_training": false
+  },
+  "training_results": {
+    "training_completed": true,
+    "total_rounds": 1,
+    "epochs_per_round": 3,
+    "batch_size": 16,
+    "total_time": 179.9826009273529,
+    "best_accuracy": 0.25,
+    "best_f1": 0.1882973944294699,
+    "best_round": 1,
+    "final_test_accuracy": 0.0,
+    "final_test_f1": 0.0,
+    "training_history": {
+      "round_accuracies": [
+        0.25
+      ],
+      "round_f1_scores": [
+        0.1882973944294699
+      ],
+      "round_losses": [
+        "2.080071"
+      ],
+      "training_times": [
+        2.7052390575408936
+      ]
+    },
+    "architecture": "True VFL with Gradient Updates"
+  },
+  "training_history": {
+    "round_accuracies": [
+      0.25
+    ],
+    "round_f1_scores": [
+      0.1882973944294699
+    ],
+    "round_losses": [
+      "2.080071"
+    ],
+    "training_times": [
+      2.7052390575408936
+    ]
+  },
+  "best_performance": {
+    "accuracy": 0.25,
+    "f1_score": 0.1882973944294699,
+    "round": 1
+  },
+  "timing": {
+    "total_time_seconds": 180.36960411071777,
+    "total_time_formatted": "3m 0s",
+    "average_round_time": 180.36960411071777
+  },
+  "metadata": {
+    "timestamp": "2025-06-23T10:17:40.281268",
+    "phase": 3,
+    "phase_description": "Advanced Generalization & Robustness"
+  }
+}

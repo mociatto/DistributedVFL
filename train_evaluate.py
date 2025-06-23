@@ -462,5 +462,87 @@ def save_training_plots(history, filename_prefix='training'):
     plt.close()
 
 
+def check_validation_test_consistency(val_accuracy, test_accuracy, threshold=0.15):
+    """
+    Check if validation and test accuracies are consistent.
+    Large gaps indicate overfitting to validation set.
+    
+    Args:
+        val_accuracy: Validation accuracy
+        test_accuracy: Test accuracy  
+        threshold: Maximum acceptable gap (default 15%)
+    
+    Returns:
+        dict: Analysis results with warnings and recommendations
+    """
+    gap = abs(val_accuracy - test_accuracy)
+    gap_percentage = gap * 100
+    
+    analysis = {
+        'validation_accuracy': val_accuracy,
+        'test_accuracy': test_accuracy,
+        'gap': gap,
+        'gap_percentage': gap_percentage,
+        'is_overfitted': gap > threshold,
+        'severity': 'low'
+    }
+    
+    # Determine severity
+    if gap > 0.4:  # 40%+ gap
+        analysis['severity'] = 'critical'
+        analysis['recommendation'] = 'Severe overfitting detected. Increase regularization dramatically.'
+    elif gap > 0.25:  # 25%+ gap
+        analysis['severity'] = 'high'
+        analysis['recommendation'] = 'High overfitting. Increase dropout, L2 reg, and reduce model complexity.'
+    elif gap > threshold:  # 15%+ gap
+        analysis['severity'] = 'moderate'
+        analysis['recommendation'] = 'Moderate overfitting. Consider stronger regularization.'
+    else:
+        analysis['severity'] = 'low'
+        analysis['recommendation'] = 'Good generalization. Model is well-regularized.'
+    
+    return analysis
+
+
+def suggest_regularization_improvements(gap_percentage):
+    """
+    Suggest specific regularization improvements based on val-test gap.
+    
+    Args:
+        gap_percentage: Validation-test accuracy gap as percentage
+    
+    Returns:
+        list: Specific improvement suggestions
+    """
+    suggestions = []
+    
+    if gap_percentage > 40:
+        suggestions.extend([
+            "🔥 CRITICAL: Increase dropout to 0.7-0.8",
+            "🔥 CRITICAL: Increase L2 regularization to 0.1",
+            "🔥 CRITICAL: Reduce model complexity (fewer layers/units)",
+            "🔥 CRITICAL: Use stronger data augmentation",
+            "🔥 CRITICAL: Implement early stopping with patience=1"
+        ])
+    elif gap_percentage > 25:
+        suggestions.extend([
+            "⚠️  HIGH: Increase dropout to 0.6-0.7",
+            "⚠️  HIGH: Increase L2 regularization to 0.01-0.05",
+            "⚠️  HIGH: Use mixup augmentation from epoch 1",
+            "⚠️  HIGH: Reduce learning rate by 50%"
+        ])
+    elif gap_percentage > 15:
+        suggestions.extend([
+            "📊 MODERATE: Increase dropout to 0.5-0.6",
+            "📊 MODERATE: Increase L2 regularization to 0.005-0.01",
+            "📊 MODERATE: Use label smoothing",
+            "📊 MODERATE: Implement gradient clipping"
+        ])
+    else:
+        suggestions.append("✅ GOOD: Model generalization is acceptable")
+    
+    return suggestions
+
+
 # REMOVED: federated_averaging function - not needed in true VFL architecture
 # VFL uses embedding-based training, not weight averaging 

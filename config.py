@@ -19,7 +19,7 @@ VERSION = "4.0.0"  # Post-architectural improvements
 DATA_CONFIG = {
     # Dataset settings
     'dataset_name': 'HAM10000',
-    'data_percentage': 0.1,  # Use 10% of data for faster experimentation
+    'data_percentage': 0.2,  # Use 10% of data for faster experimentation
     'num_classes': 7,
     'class_names': ['akiec', 'bcc', 'bkl', 'df', 'mel', 'nv', 'vasc'],
     
@@ -73,17 +73,17 @@ MODEL_CONFIG = {
         'activation': 'relu'
     },
     
-    # Fusion model (Step 3 enhanced with transformer)
+    # Fusion model (SIMPLIFIED for better generalization)
     'fusion_model': {
-        'attention_heads': 8,
-        'attention_dim': 256,
-        'hidden_units': [512, 256, 128],
-        'dropout_rate': 0.4,
-        'advanced_dropout_rate': 0.3,  # Step 3 feature
-        'l2_reg': 0.001,
-        'use_cross_attention': True,
-        'use_ensemble': True,  # Step 2 & 3 feature
-        'ensemble_size': 3,
+        'attention_heads': 4,  # Reduced from 8
+        'attention_dim': 128,  # Reduced from 256
+        'hidden_units': [256, 64],  # Simplified from [512, 256, 128]
+        'dropout_rate': 0.7,  # Increased to 0.7
+        'advanced_dropout_rate': 0.6,  # Increased to 0.6
+        'l2_reg': 0.05,  # Increased to 0.05
+        'use_cross_attention': False,  # Disabled for simplicity
+        'use_ensemble': False,  # Disabled to reduce complexity
+        'ensemble_size': 1,
         'activation': 'relu'
     }
 }
@@ -97,7 +97,7 @@ TRAINING_CONFIG = {
     'total_rounds': 3,
     'epochs_per_round': 8,
     'batch_size': 16,
-    'learning_rate': 0.001,
+    'learning_rate': 0.0005,  # Reduced by 50% for better generalization
     
     # Client training settings
     'client_epochs': {
@@ -120,11 +120,16 @@ TRAINING_CONFIG = {
     'lr_decay_factor': 0.5,
     'lr_decay_epochs': [5, 10],
     
-    # Early stopping
+    # Early stopping (VERY aggressive)
     'use_early_stopping': True,
-    'patience': 3,
-    'min_delta': 0.001,
-    'restore_best_weights': True
+    'patience': 1,  # VERY aggressive - stop after 1 epoch without improvement
+    'min_delta': 0.01,  # High threshold for meaningful improvement
+    'restore_best_weights': True,
+    
+    # Progressive training strategy
+    'use_progressive_training': True,
+    'start_simple': True,  # Start with simple architecture
+    'complexity_schedule': [0.3, 0.6, 1.0]  # Gradually increase complexity
 }
 
 # =============================================================================
@@ -146,11 +151,11 @@ LOSS_CONFIG = {
     'use_label_smoothing': True,
     'label_smoothing_factor': 0.1,
     
-    # Regularization
-    'l2_lambda': 0.001,
+    # Regularization (MUCH stronger)
+    'l2_lambda': 0.05,  # Increased 50x for stronger regularization
     'use_mixup': True,  # Step 3 feature
-    'mixup_alpha': 0.2,
-    'mixup_start_epoch': 3
+    'mixup_alpha': 0.4,  # Increased for stronger augmentation
+    'mixup_start_epoch': 1  # Start immediately
 }
 
 # =============================================================================
@@ -169,13 +174,19 @@ GENERALIZATION_CONFIG = {
     'gaussian_dropout_rate': 0.1,
     'alpha_dropout_rate': 0.2,
     
-    # Data augmentation
+    # Data augmentation (enhanced)
     'use_strong_augmentation': True,
-    'augmentation_probability': 0.8,
+    'augmentation_probability': 0.9,  # Increased from 0.8
+    'rotation_range': 30,
+    'zoom_range': 0.2,
+    'horizontal_flip': True,
+    'vertical_flip': True,
+    'brightness_range': [0.8, 1.2],
+    'shear_range': 0.1,
     
     # Cross-validation
-    'use_cross_validation': False,  # Resource intensive
-    'cv_folds': 5,
+    'use_cross_validation': True,  # Enable for better generalization
+    'cv_folds': 3,  # Reduced to 3 for faster training
     
     # Ensemble methods
     'use_ensemble': True,
