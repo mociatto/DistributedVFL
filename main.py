@@ -359,6 +359,27 @@ def create_config_from_args(args):
     if hasattr(args, 'resume'):
         config['resume_training'] = args.resume
     
+    # PHASE 1 & 2 UPGRADE: Handle new advanced parameters
+    if args.gamma is not None:
+        config['focal_gamma'] = args.gamma
+    if args.num_heads is not None:
+        config['attention_heads'] = args.num_heads
+    if args.focal_alpha is not None:
+        config['focal_alpha'] = args.focal_alpha
+    
+    # MEMORY OPTIMIZATION: Handle memory-efficient parameters
+    if hasattr(args, 'lightweight') and args.lightweight:
+        config['use_lightweight_model'] = True
+        config['batch_size'] = min(config.get('batch_size', 16), 8)  # Auto-reduce batch size
+        print("   🔧 LIGHTWEIGHT MODE: EfficientNetB0 + reduced batch size")
+    else:
+        config['use_lightweight_model'] = False
+        
+    if hasattr(args, 'memory_efficient') and args.memory_efficient:
+        config['memory_efficient'] = True
+        config['batch_size'] = min(config.get('batch_size', 16), 4)  # Very small batches
+        print("   🔧 MEMORY EFFICIENT MODE: Ultra-small batches + optimizations")
+    
     return config
 
 
@@ -380,12 +401,26 @@ def main():
                        help='Batch size for training')
     
     # === Model Parameters ===
-    parser.add_argument('--learning_rate', type=float, default=None,
+    parser.add_argument('--learning_rate', '--lr', type=float, default=None,
                        help='Learning rate for training')
     parser.add_argument('--embedding_dim', type=int, default=None,
                        help='Embedding dimension for both modalities')
     parser.add_argument('--adversarial_lambda', type=float, default=None,
                        help='Adversarial loss weight (0 to disable privacy)')
+    
+    # === PHASE 1 & 2 UPGRADE: Advanced Model Parameters ===
+    parser.add_argument('--gamma', type=float, default=None,
+                       help='Focal Loss gamma parameter (focusing parameter)')
+    parser.add_argument('--num_heads', type=int, default=None,
+                       help='Number of attention heads in transformer fusion')
+    parser.add_argument('--focal_alpha', type=float, default=None,
+                       help='Focal Loss alpha parameter for class weighting')
+    
+    # === MEMORY OPTIMIZATION PARAMETERS ===
+    parser.add_argument('--lightweight', action='store_true',
+                       help='Use EfficientNetB0 (5M) instead of EfficientNetV2S (21M) parameters')
+    parser.add_argument('--memory_efficient', action='store_true', 
+                       help='Enable memory efficient training (smaller batches, gradient checkpointing)')
     
     # === Data Parameters ===
     parser.add_argument('--data_dir', type=str, default=None,

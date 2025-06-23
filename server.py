@@ -219,7 +219,10 @@ class FederatedServer:
             
             # Load data and create model
             image_client.load_data()
-            image_client.create_model()
+            
+            # Check for lightweight mode configuration
+            use_lightweight = self.config.get('use_lightweight_model', True)  # Default to lightweight
+            image_client.create_model(use_lightweight=use_lightweight)
             
             # STEP 2: Enhanced training with more epochs and better regularization
             image_results = image_client.train_local_model(

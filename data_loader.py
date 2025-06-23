@@ -14,14 +14,16 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-def load_and_preprocess_image(img_path, target_size=(224, 224), augment=False):
+def load_and_preprocess_image(img_path, target_size=(224, 224), augment=False, use_efficientnet_preprocessing=True):
     """
-    Load and preprocess a single image.
+    Load and preprocess a single image with EfficientNetV2-S optimized preprocessing.
+    PHASE 2 UPGRADE: Updated preprocessing for EfficientNet compatibility.
     
     Args:
         img_path (str): Path to the image file
         target_size (tuple): Target size for resizing (height, width)
         augment (bool): Whether to apply data augmentation
+        use_efficientnet_preprocessing (bool): Use EfficientNet-optimized preprocessing
     
     Returns:
         np.ndarray: Preprocessed image array
@@ -29,22 +31,40 @@ def load_and_preprocess_image(img_path, target_size=(224, 224), augment=False):
     try:
         # Load image using PIL for better compatibility
         img = Image.open(img_path).convert('RGB')
-        img = img.resize(target_size)
+        img = img.resize(target_size, Image.BILINEAR)  # Use bilinear for EfficientNet
         img_array = np.array(img, dtype=np.float32)
         
         # Apply data augmentation if requested
         if augment:
             img_array = apply_augmentation(img_array)
         
-        # Normalize to [0, 1]
-        img_array = img_array / 255.0
+        if use_efficientnet_preprocessing:
+            # EfficientNetV2-S preprocessing (matches ImageNet training)
+            # Normalize to [0, 1] then apply ImageNet statistics
+            img_array = img_array / 255.0
+            
+            # ImageNet normalization for EfficientNet
+            # These are the standard ImageNet mean and std values
+            mean = np.array([0.485, 0.456, 0.406])
+            std = np.array([0.229, 0.224, 0.225])
+            img_array = (img_array - mean) / std
+        else:
+            # Original normalization to [0, 1]
+            img_array = img_array / 255.0
         
         return img_array
         
     except Exception as e:
         print(f"Error loading image {img_path}: {e}")
         # Return a blank image if loading fails
-        return np.zeros((*target_size, 3), dtype=np.float32)
+        if use_efficientnet_preprocessing:
+            # Return normalized blank image for EfficientNet
+            blank = np.zeros((*target_size, 3), dtype=np.float32)
+            mean = np.array([0.485, 0.456, 0.406])
+            std = np.array([0.229, 0.224, 0.225])
+            return (blank - mean) / std
+        else:
+            return np.zeros((*target_size, 3), dtype=np.float32)
 
 
 def apply_augmentation(img_array):

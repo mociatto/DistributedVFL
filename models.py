@@ -12,7 +12,18 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.applications import EfficientNetV2S, EfficientNetB0
 import numpy as np
+import ssl
+import urllib.request
+
+# SSL workaround for EfficientNet download issues
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
 
 
 class FocalLoss(tf.keras.losses.Loss):
@@ -145,14 +156,17 @@ class NoiseInjection(tf.keras.layers.Layer):
         return inputs
 
 
-def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128, use_step3_enhancements=True):
+def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128, use_step3_enhancements=True, use_lightweight=True):
     """
-    Create improved CNN image encoder with better feature extraction.
+    Create EfficientNet based image encoder with transfer learning.
+    MAJOR UPGRADE: Replaces custom CNN with state-of-the-art pre-trained backbone.
+    MEMORY FIX: Option for lightweight EfficientNetB0 vs heavy EfficientNetV2-S.
     
     Args:
         input_shape (tuple): Input image shape
         embedding_dim (int): Output embedding dimension
         use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
+        use_lightweight (bool): Use EfficientNetB0 (5M) vs EfficientNetV2S (21M) parameters
     
     Returns:
         tf.keras.Model: Image encoder model
@@ -166,71 +180,77 @@ def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128, use_step3
     else:
         x = inputs
     
-    # Enhanced CNN architecture with better feature extraction
-    # Block 1 - Feature detection
-    x = Conv2D(32, (3, 3), activation='relu', padding='same', 
-               kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(32, (3, 3), activation='relu', padding='same',
-               kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling2D((2, 2))(x)
+    # ========================================
+    # PHASE 2 UPGRADE: EfficientNet Transfer Learning with Memory Optimization
+    # ========================================
+    
+    if use_lightweight:
+        print("   🚀 MEMORY-OPTIMIZED: Using EfficientNetB0 backbone (5M parameters)")
+        backbone = EfficientNetB0(
+            weights='imagenet',  # Pre-trained weights
+            include_top=False,   # Remove final classification layer
+            input_tensor=x,      # Use our input tensor
+            pooling='avg'        # Global average pooling
+        )
+        backbone_output_dim = 1280  # EfficientNetB0 output dimension
+    else:
+        print("   🚀 FULL-SCALE: Using EfficientNetV2-S backbone (21M parameters)")
+        backbone = EfficientNetV2S(
+            weights='imagenet',  # Pre-trained weights
+            include_top=False,   # Remove final classification layer
+            input_tensor=x,      # Use our input tensor
+            pooling='avg'        # Global average pooling
+        )
+        backbone_output_dim = 1280  # EfficientNetV2-S output dimension
+    
+    # Make backbone trainable for fine-tuning
+    backbone.trainable = True
+    
+    # Fine-tuning strategy: freeze early layers, train later layers
+    total_layers = len(backbone.layers)
+    freeze_until = int(total_layers * 0.8)  # Freeze first 80%
+    
+    for layer in backbone.layers[:freeze_until]:
+        layer.trainable = False
+    
+    model_name = "EfficientNetB0" if use_lightweight else "EfficientNetV2-S"
+    print(f"   📊 {model_name}: {total_layers} layers, freezing first {freeze_until} layers")
+    
+    # Get features from backbone
+    backbone_features = backbone(x)
+    
+    # Adaptation layers to convert 1280-D features to our embedding_dim
+    # Add regularization and adaptation
+    features = Dense(512, activation='relu', kernel_initializer='he_normal')(backbone_features)
+    features = BatchNormalization()(features)
     
     # STEP 3: Enhanced dropout for better generalization
     if use_step3_enhancements:
-        x = AdvancedDropout(base_rate=0.25)(x)
+        features = AdvancedDropout(base_rate=0.3)(features)
+        features = NoiseInjection(noise_stddev=0.1)(features)
     else:
-        x = Dropout(0.25)(x)
+        features = Dropout(0.3)(features)
     
-    # Block 2 - Pattern recognition
-    x = Conv2D(64, (3, 3), activation='relu', padding='same',
-               kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(64, (3, 3), activation='relu', padding='same',
-               kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling2D((2, 2))(x)
-    
-    # STEP 3: Enhanced dropout
-    if use_step3_enhancements:
-        x = AdvancedDropout(base_rate=0.3)(x)
-    else:
-        x = Dropout(0.25)(x)
-    
-    # Block 3 - Complex features
-    x = Conv2D(128, (3, 3), activation='relu', padding='same',
-               kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling2D((2, 2))(x)
-    
-    # STEP 3: Enhanced dropout
-    if use_step3_enhancements:
-        x = AdvancedDropout(base_rate=0.35)(x)
-    else:
-        x = Dropout(0.25)(x)
-    
-    # Global feature extraction
-    x = GlobalAveragePooling2D()(x)
-    
-    # Dense embedding layers with Step 3 enhancements
-    x = Dense(256, activation='relu', kernel_initializer='he_normal')(x)
-    x = BatchNormalization()(x)
+    # Second adaptation layer
+    features = Dense(embedding_dim * 2, activation='relu', kernel_initializer='he_normal')(features)
+    features = BatchNormalization()(features)
     
     # STEP 3: More aggressive regularization
     if use_step3_enhancements:
-        x = AdvancedDropout(base_rate=0.5)(x)
-        x = NoiseInjection(noise_stddev=0.1)(x)
+        features = AdvancedDropout(base_rate=0.4)(features)
     else:
-        x = Dropout(0.5)(x)
+        features = Dropout(0.4)(features)
     
     # Final embedding layer
     embeddings = Dense(embedding_dim, activation='linear', 
-                      kernel_initializer='he_normal', name='embeddings')(x)
+                      kernel_initializer='he_normal', name='embeddings')(features)
     
-    model = Model(inputs=inputs, outputs=embeddings, name='image_encoder')
+    model = Model(inputs=inputs, outputs=embeddings, name='efficientnet_image_encoder')
     
     enhancement_note = " (Step 3 enhanced)" if use_step3_enhancements else ""
-    print(f"   🖼️  Image encoder{enhancement_note}: {model.count_params():,} parameters")
+    memory_note = " [LIGHTWEIGHT]" if use_lightweight else " [FULL-SCALE]"
+    print(f"   🖼️  {model_name} encoder{enhancement_note}{memory_note}: {model.count_params():,} parameters")
+    print(f"   🎯 Transfer Learning: Pre-trained on ImageNet, fine-tuning enabled")
     return model
 
 

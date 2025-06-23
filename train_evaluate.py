@@ -5,7 +5,7 @@ Handles both individual client training and federated server training with fusio
 
 import numpy as np
 import tensorflow as tf
-from sklearn.metrics import classification_report, f1_score, confusion_matrix
+from sklearn.metrics import classification_report, f1_score, confusion_matrix, balanced_accuracy_score
 from sklearn.utils.class_weight import compute_class_weight
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -86,7 +86,8 @@ def create_image_data_generator(image_paths, labels, batch_size=32,
                 img = load_and_preprocess_image(
                     image_paths[idx], 
                     target_size=target_size, 
-                    augment=augment
+                    augment=augment,
+                    use_efficientnet_preprocessing=True  # PHASE 2: Enable EfficientNet preprocessing
                 )
                 batch_images.append(img)
                 batch_labels.append(labels[idx])
@@ -381,12 +382,14 @@ def evaluate_fusion_model(fusion_model, image_embeddings, tabular_embeddings, la
     
     # Metrics
     accuracy = np.mean(pred_classes == labels)
+    balanced_accuracy = balanced_accuracy_score(labels, pred_classes)
     f1_macro = f1_score(labels, pred_classes, average='macro')
     f1_weighted = f1_score(labels, pred_classes, average='weighted')
     
     if verbose > 0:
         print(f"\nFusion Model Evaluation:")
         print(f"  Accuracy: {accuracy:.4f}")
+        print(f"  Balanced Accuracy: {balanced_accuracy:.4f}")
         print(f"  F1 (macro): {f1_macro:.4f}")
         print(f"  F1 (weighted): {f1_weighted:.4f}")
         
@@ -413,6 +416,7 @@ def evaluate_fusion_model(fusion_model, image_embeddings, tabular_embeddings, la
     
     return {
         'accuracy': accuracy,
+        'balanced_accuracy': balanced_accuracy,
         'f1_macro': f1_macro,
         'f1_weighted': f1_weighted,
         'predictions': predictions,

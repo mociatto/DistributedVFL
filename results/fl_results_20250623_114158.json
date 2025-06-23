@@ -1,0 +1,114 @@
+{
+  "configuration": {
+    "phase": 3,
+    "phase_description": "Advanced Generalization & Robustness",
+    "step": 3,
+    "data_percentage": 0.01,
+    "num_classes": 7,
+    "test_split": 0.15,
+    "val_split": 0.15,
+    "random_seed": 42,
+    "total_rounds": 2,
+    "epochs_per_round": 2,
+    "batch_size": 16,
+    "learning_rate": 0.0005,
+    "embedding_dim": 256,
+    "adversarial_lambda": 0.0,
+    "use_contrastive_loss": true,
+    "contrastive_temperature": 0.5,
+    "classification_weight": 0.7,
+    "contrastive_weight": 0.3,
+    "use_step3_enhancements": true,
+    "use_mixup_augmentation": true,
+    "use_noise_injection": true,
+    "use_ensemble_prediction": true,
+    "mixup_alpha": 0.4,
+    "noise_stddev": 0.1,
+    "advanced_dropout_rate": 0.2,
+    "use_early_stopping": true,
+    "use_ensemble": false,
+    "regularization_strength": 0.05,
+    "dropout_rate": 0.7,
+    "label_smoothing": 0.1,
+    "data_dir": "data",
+    "results_dir": "results",
+    "models_dir": "models",
+    "plots_dir": "plots",
+    "embeddings_dir": "embeddings",
+    "fl_mode": true,
+    "client_selection": "all",
+    "privacy_budget": 1.0,
+    "use_differential_privacy": false,
+    "use_secure_aggregation": false,
+    "enable_wandb": false,
+    "save_embeddings": true,
+    "save_plots": true,
+    "resume_training": false,
+    "focal_gamma": 2.0,
+    "attention_heads": 8
+  },
+  "training_results": {
+    "training_completed": true,
+    "total_rounds": 2,
+    "epochs_per_round": 2,
+    "batch_size": 16,
+    "total_time": 68.52033114433289,
+    "best_accuracy": 0.35714285714285715,
+    "best_f1": 0.3166666666666666,
+    "best_round": 2,
+    "final_test_accuracy": 0.0,
+    "final_test_f1": 0.0,
+    "training_history": {
+      "round_accuracies": [
+        0.25,
+        0.35714285714285715
+      ],
+      "round_f1_scores": [
+        0.21727478870336014,
+        0.3166666666666666
+      ],
+      "round_losses": [
+        "2.4164064",
+        "2.246291"
+      ],
+      "training_times": [
+        0.7362837791442871,
+        0.5976500511169434
+      ]
+    },
+    "architecture": "True VFL with Gradient Updates"
+  },
+  "training_history": {
+    "round_accuracies": [
+      0.25,
+      0.35714285714285715
+    ],
+    "round_f1_scores": [
+      0.21727478870336014,
+      0.3166666666666666
+    ],
+    "round_losses": [
+      "2.4164064",
+      "2.246291"
+    ],
+    "training_times": [
+      0.7362837791442871,
+      0.5976500511169434
+    ]
+  },
+  "best_performance": {
+    "accuracy": 0.35714285714285715,
+    "f1_score": 0.3166666666666666,
+    "round": 2
+  },
+  "timing": {
+    "total_time_seconds": 68.93299722671509,
+    "total_time_formatted": "1m 9s",
+    "average_round_time": 34.466498613357544
+  },
+  "metadata": {
+    "timestamp": "2025-06-23T11:41:58.021373",
+    "phase": 3,
+    "phase_description": "Advanced Generalization & Robustness"
+  }
+}

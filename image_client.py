@@ -98,12 +98,13 @@ class ImageClient:
         print(f"   - Validation samples: {len(self.val_data['image_paths'])}")
         print(f"   - Test samples: {len(self.test_data['image_paths'])}")
     
-    def create_model(self, use_step3_enhancements=True):
+    def create_model(self, use_step3_enhancements=True, use_lightweight=True):
         """
         Create the image encoder model.
         
         Args:
             use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
+            use_lightweight (bool): Whether to use lightweight EfficientNetB0 vs heavy EfficientNetV2S
         """
         print("🏗️  Creating image encoder model...")
         
@@ -111,7 +112,8 @@ class ImageClient:
         self.encoder = create_image_encoder(
             input_shape=(224, 224, 3),
             embedding_dim=self.embedding_dim,
-            use_step3_enhancements=use_step3_enhancements
+            use_step3_enhancements=use_step3_enhancements,
+            use_lightweight=use_lightweight
         )
         
         print(f"   ✅ Model created with {self.encoder.count_params():,} parameters")
@@ -231,10 +233,15 @@ class ImageClient:
         return embeddings, data['labels'], data['indices']
     
     def _load_images(self, image_paths, batch_size=32):
-        """Load and preprocess images from paths."""
+        """Load and preprocess images from paths with EfficientNet preprocessing."""
         images = []
         for path in image_paths:
-            img = load_and_preprocess_image(path, target_size=(224, 224), augment=False)
+            img = load_and_preprocess_image(
+                path, 
+                target_size=(224, 224), 
+                augment=False,
+                use_efficientnet_preprocessing=True  # PHASE 2: Enable EfficientNet preprocessing
+            )
             images.append(img)
         return np.array(images)
     
