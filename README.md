@@ -2,7 +2,7 @@
 
 A **distributed federated learning system** for medical image analysis using the HAM10000 skin lesion dataset. This system allows multiple computers to train AI models together while keeping their data private and separate.
 
-## 🎯 What This Does
+## What This Does
 
 - **Analyzes skin cancer images** using advanced AI models
 - **Keeps data private** - each computer keeps its own data
@@ -11,24 +11,23 @@ A **distributed federated learning system** for medical image analysis using the
 
 ---
 
-## 🏗️ How It Works
+## How It Works
 
 The system has **3 parts** that run on separate computers:
 
 ```
 🖥️ SERVER (Port 8080)          🖥️ IMAGE CLIENT (Port 8081)     🖥️ TABULAR CLIENT (Port 8082)
-┌─────────────────────┐         ┌─────────────────────┐         ┌─────────────────────┐
+
 │ • Coordinates training │       │ • Processes images   │       │ • Processes data     │
 │ • Combines AI models   │  ←──→ │ • Has image files    │  ←──→ │ • Has CSV metadata   │
-│ • No raw data needed  │       │ • Generates features │       │ • Generates features │
-└─────────────────────┘         └─────────────────────┘         └─────────────────────┘
+│ • No raw data needed   │       │ • Generates features │       │ • Generates features │
 ```
 
-Each computer communicates through **HTTP** (like websites talking to each other).
+Each computer communicates through **HTTP**.
 
 ---
 
-## 📁 Setup
+## Setup
 
 ### 1. Get the HAM10000 Dataset
 
@@ -47,7 +46,7 @@ pip install -r requirements.txt
 
 ### 3. Distribute Data to Computers
 
-**🖥️ Server Computer:**
+**Server Computer:**
 ```
 GuardianFL/
 ├── server.py
@@ -55,9 +54,8 @@ GuardianFL/
 ├── config.py
 └── (other Python files)
 ```
-**No data needed!** The server just coordinates.
 
-**🖥️ Image Client Computer:**
+**Image Client Computer:**
 ```
 GuardianFL/
 ├── image_client.py  
@@ -66,9 +64,8 @@ GuardianFL/
 │   └── HAM10000_images_part_2/
 └── (other Python files)
 ```
-**Only image folders!** No CSV file.
 
-**🖥️ Tabular Client Computer:**
+**Tabular Client Computer:**
 ```
 GuardianFL/
 ├── tabular_client.py
@@ -76,11 +73,10 @@ GuardianFL/
 │   └── HAM10000_metadata.csv
 └── (other Python files)
 ```
-**Only CSV file!** No image folders.
 
 ---
 
-## 🚀 Running the System
+## Running the System
 
 ### Single Computer Testing (Easy Start)
 
@@ -121,18 +117,18 @@ DISTRIBUTED_CONFIG = {
 
 #### Step 2: Start Components (in this order)
 
-**🖥️ On Server Computer:**
+**On Server Computer:**
 ```bash
 python3 server.py --mode distributed
 ```
 
-**🖥️ On Image Client Computer:**
+**On Image Client Computer:**
 ```bash
 python3 image_client.py --mode distributed --server_host 192.168.1.100
 ```
 *(Replace `192.168.1.100` with your server's actual IP)*
 
-**🖥️ On Tabular Client Computer:**
+**On Tabular Client Computer:**
 ```bash
 python3 tabular_client.py --mode distributed --server_host 192.168.1.100
 ```
@@ -140,7 +136,7 @@ python3 tabular_client.py --mode distributed --server_host 192.168.1.100
 
 ---
 
-## 🔧 Important Network Info
+## Important Network Info
 
 ### Ports Used
 - **8080** - Server (main coordinator)
@@ -165,35 +161,7 @@ Look for something like `192.168.1.100` or `10.0.0.5`.
 
 ---
 
-## 📊 What You'll See
-
-### Server Output
-```
-🚀 Starting Distributed FL Server...
-🏗️ Initializing models...
-✅ Server initialized
-✅ Registered image client
-✅ Registered tabular client
-🎯 STARTING FEDERATED LEARNING
-🔄 FL ROUND 1/2
-✅ Round 1 complete: Accuracy: 21.25%
-🏆 FINAL RESULTS: Test Accuracy: 19.00%
-```
-
-### Client Output
-```
-🖼️ Starting Image Client...
-📊 Loading data...
-✅ Data loaded: 317 training samples
-📝 Registering with server...
-✅ Registered successfully
-🚀 Training local model...
-✅ Training completed!
-```
-
----
-
-## ⚙️ Configuration
+## Configuration
 
 ### Speed vs Accuracy
 
@@ -221,7 +189,7 @@ The system includes sophisticated AI features:
 
 ---
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### "Connection refused" 
 - Start the **server first**
@@ -244,28 +212,7 @@ The system includes sophisticated AI features:
 
 ---
 
-## 📈 Expected Results
-
-With the full dataset:
-- **Training Time:** ~5-10 minutes per round
-- **Accuracy Range:** 15-30% (this is normal for medical image classification)
-- **Output Files:** 
-  - `results/distributed_fl_results_*.json` - Performance metrics
-  - `models/best_fusion_model.h5` - Trained AI model
-
----
-
-## 💡 Tips for Beginners
-
-1. **Start with one computer** - Get familiar with the system first
-2. **Use small data** - Set `data_percentage: 0.05` for quick tests  
-3. **Check the terminal** - All important info shows up there
-4. **Be patient** - AI training takes time, especially with images
-5. **Check your network** - Most issues are connection problems
-
----
-
-## 🏥 For Medical/Research Use
+## For Medical/Research Use
 
 This system is designed for:
 - **Hospitals** with multiple locations
@@ -277,4 +224,3 @@ The federated learning approach means each site keeps their data private while c
 
 ---
 
-*Ready to start? Run the single computer test first, then expand to multiple machines when you're comfortable!*
