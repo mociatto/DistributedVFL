@@ -10,9 +10,27 @@ data/HAM10000_images_part_2/
 data/*.csv
 !data/HAM10000_metadata.csv
 
-# Keep directory structure
+# Keep directory structure with .gitkeep files
 !data/
 !data/.gitkeep
+!embeddings/
+!embeddings/.gitkeep
+!models/
+!models/.gitkeep
+!status/
+!status/.gitkeep
+!results/
+!results/.gitkeep
+
+# Ignore all contents of these directories except .gitkeep
+embeddings/*
+!embeddings/.gitkeep
+models/*
+!models/.gitkeep
+status/*
+!status/.gitkeep
+results/*
+!results/.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -127,21 +145,6 @@ Thumbs.db
 *.weights.h5
 *.pkl
 best_models*/
-
-# Ignore generated model files but keep directory structure
-models/*.h5
-models/*.pkl
-models/*.weights.h5
-
-# Ignore runtime status files but keep directory structure  
-status/*.json
-
-# Ignore FL communication files but keep directory structure
-communication/*.pkl
-communication/*.h5
-
-# Ignore old source directory if it exists
-source/
 
 # Ignore generated plots and visualizations
 confusion_matrix_fusion.png

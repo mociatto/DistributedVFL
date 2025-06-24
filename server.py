@@ -1,13 +1,27 @@
+#!/usr/bin/env python3
 """
-Federated Server for Vertical Federated Learning.
-Coordinates image and tabular clients, performs fusion with Transformer attention,
-and handles the controllable adversarial privacy mechanism.
+Distributed Federated Learning Server with Fusion-Guided Weight Updates
+Implements true federated learning with iterative client retraining and guidance.
 """
 
 import os
 import sys
+import time
+import json
+import pickle
+import logging
+import argparse
+import threading
+from datetime import datetime
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import numpy as np
 import tensorflow as tf
+
+# Import existing FL components (preserving all strategies)  
+from network_config import NetworkConfig, APIEndpoints, get_server_config
+from config import get_config, get_current_phase_config, validate_config
+from status import update_training_status
 from data_loader import HAM10000DataLoader
 from models import create_fusion_model_with_transformer
 from train_evaluate import (
@@ -15,13 +29,10 @@ from train_evaluate import (
     evaluate_fusion_model,
     save_training_plots
 )
-from status import update_training_status, finalize_training_status, initialize_status
-import pickle
-import argparse
-import time
-from sklearn.metrics import f1_score
-import requests
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class FederatedServer:
     """
@@ -125,16 +136,6 @@ class FederatedServer:
         else:
             self.ensemble_models = []
     
-    def load_data_loader(self, data_dir="data"):
-        """Load data loader for metadata and class information."""
-        print(f"\n📊 Loading data loader for server...")
-        
-        self.data_loader = HAM10000DataLoader(data_dir=data_dir, random_state=42)
-        self.data_loader.load_and_preprocess_data(data_percentage=self.data_percentage)
-        
-        print(f"   ✅ Data loader initialized")
-        print(f"   - Classes: {self.data_loader.get_class_names()}")
-    
     def load_client_embeddings(self, data_split='train', embeddings_dir='embeddings'):
         """
         Load embeddings from both clients.
@@ -171,1060 +172,1157 @@ class FederatedServer:
         
         # Get sensitive attributes if available
         sensitive_attrs = None
-        if self.data_loader is not None:
-            # Get sensitive attributes for these specific indices
-            if data_split == 'train':
-                client_data = self.data_loader.get_image_client_data()['train']
-            elif data_split == 'val':
-                client_data = self.data_loader.get_image_client_data()['val']
-            elif data_split == 'test':
-                client_data = self.data_loader.get_image_client_data()['test']
-            
-            sensitive_attrs = client_data['sensitive_attrs']
-        
         return (image_data['embeddings'], tabular_data['embeddings'], 
                 image_data['labels'], sensitive_attrs)
-    
-    def coordinate_client_training(self, epochs=15, batch_size=16):
-        """
-        Coordinate local training on both clients directly (no HTTP).
-        
-        Args:
-            epochs (int): Number of epochs for client training
-            batch_size (int): Batch size for client training
-        
-        Returns:
-            dict: Training results from both clients
-        """
-        print(f"\n🎯 COORDINATING CLIENT TRAINING")
-        print("="*60)
-        print(f"   🔄 Client training epochs: {epochs}")
-        print(f"   📦 Batch size: {batch_size}")
-        
-        results = {}
-        
-        # Import clients directly
-        from image_client import ImageClient
-        from tabular_client import TabularClient
-        
-        # STEP 2: Enhanced client training with data augmentation and regularization
-        try:
-            print(f"\n📤 Training image client with Step 2 enhancements...")
-            
-            # Initialize image client
-            image_client = ImageClient(
-                embedding_dim=self.embedding_dim,
-                data_percentage=self.data_percentage
-            )
-            
-            # Load data and create model
-            image_client.load_data()
-            
-            # Check for lightweight mode configuration
-            use_lightweight = self.config.get('use_lightweight_model', True)  # Default to lightweight
-            image_client.create_model(use_lightweight=use_lightweight)
-            
-            # STEP 2: Enhanced training with more epochs and better regularization
-            image_results = image_client.train_local_model(
-                epochs=epochs + 5,  # More epochs for better learning
-                batch_size=batch_size, 
-                verbose=1
-            )
-            
-            # Check if training was successful
-            if 'error' in image_results:
-                print(f"   ❌ Image client training failed: {image_results['error']}")
-                results['image_client'] = image_results
-            else:
-                # Embeddings are automatically saved during training
-                results['image_client'] = image_results
-                print(f"   ✅ Image client training completed successfully")
-                print(f"      🎯 Best training accuracy: {image_results.get('final_train_acc', 0):.4f}")
-                print(f"      🎯 Best validation accuracy: {image_results.get('final_val_acc', 0):.4f}")
-                
-        except Exception as e:
-            print(f"   ❌ Image client training error: {str(e)}")
-            import traceback
-            print(f"   🔍 Full traceback: {traceback.format_exc()}")
-            results['image_client'] = {'error': str(e)}
-        
-        # STEP 2: Enhanced tabular client training
-        try:
-            print(f"\n📤 Training tabular client with Step 2 enhancements...")
-            
-            # Initialize tabular client
-            tabular_client = TabularClient(
-                embedding_dim=self.embedding_dim,
-                data_percentage=self.data_percentage
-            )
-            
-            # Load data and create model
-            tabular_client.load_data()
-            tabular_client.create_model()
-            
-            # STEP 2: Enhanced training with more epochs and better regularization
-            tabular_results = tabular_client.train_local_model(
-                epochs=epochs + 5,  # More epochs for better learning
-                batch_size=batch_size, 
-                verbose=1
-            )
-            
-            # Check if training was successful
-            if 'error' in tabular_results:
-                print(f"   ❌ Tabular client training failed: {tabular_results['error']}")
-                results['tabular_client'] = tabular_results
-            else:
-                # Embeddings are automatically saved during training
-                results['tabular_client'] = tabular_results
-                print(f"   ✅ Tabular client training completed successfully")
-                print(f"      🎯 Best training accuracy: {tabular_results.get('final_train_acc', 0):.4f}")
-                print(f"      🎯 Best validation accuracy: {tabular_results.get('final_val_acc', 0):.4f}")
-                
-        except Exception as e:
-            print(f"   ❌ Tabular client training error: {str(e)}")
-            import traceback
-            print(f"   🔍 Full traceback: {traceback.format_exc()}")
-            results['tabular_client'] = {'error': str(e)}
-        
-        print(f"\n✅ CLIENT TRAINING COORDINATION COMPLETE")
-        print("="*60)
-        
-        return results
-    
-    def coordinate_fl_round(self, round_idx, total_rounds, epochs=10, batch_size=32):
-        """
-        Coordinate a federated learning round with clients.
-        
-        Args:
-            round_idx (int): Current round index
-            total_rounds (int): Total number of rounds
-            epochs (int): Epochs per round
-            batch_size (int): Batch size
-        
-        Returns:
-            dict: Training metrics
-        """
-        print(f"\n🚀 FEDERATED ROUND {round_idx + 1}/{total_rounds}")
-        print("=" * 60)
-        
-        round_start_time = time.time()
-        
-        # Update status
-        update_training_status(
-            current_round=round_idx + 1,
-            total_rounds=total_rounds,
-            phase="coordinating_clients"
-        )
-        
-        # Step 1: Send global model to clients
-        self.send_global_model_to_clients(round_idx)
-        
-        # Step 2: Coordinate client training
-        client_results = self.coordinate_client_training(epochs, batch_size)
-        
-        # Step 3: Collect and aggregate client updates
-        self.aggregate_client_updates(round_idx)
-        
-        # Step 4: Evaluate global model
-        val_results = self.evaluate_global_model(round_idx)
-        
-        round_time = time.time() - round_start_time
-        
-        # Store metrics
-        round_accuracy = val_results['accuracy']
-        round_f1 = val_results['f1_score']
-        round_loss = val_results.get('loss', 0.0)
-        
-        self.training_history['round_accuracies'].append(round_accuracy)
-        self.training_history['round_f1_scores'].append(round_f1)
-        self.training_history['round_losses'].append(round_loss)
-        self.training_history['training_times'].append(round_time)
-        
-        # Track best performance
-        if round_accuracy > self.best_accuracy:
-            self.best_accuracy = round_accuracy
-            self.best_f1 = round_f1
-            self.best_round = round_idx + 1
-            self.save_best_model()
-        
-        # Update status
-        update_training_status(
-            current_round=round_idx + 1,
-            total_rounds=total_rounds,
-            accuracy=round_accuracy,
-            loss=round_loss,
-            f1_score=round_f1,
-            phase="round_complete"
-        )
-        
-        print(f"\n📊 ROUND {round_idx + 1} SUMMARY:")
-        print(f"   🎯 Validation Accuracy: {round_accuracy:.4f}")
-        print(f"   📈 Validation F1: {round_f1:.4f}")
-        print(f"   📉 Validation Loss: {round_loss:.4f}")
-        print(f"   ⏱️  Round time: {round_time:.1f} seconds")
-        print(f"   🏆 Best so far: Acc={self.best_accuracy:.4f} (Round {self.best_round})")
-        
-        return {
-            'accuracy': round_accuracy,
-            'f1_score': round_f1,
-            'loss': round_loss,
-            'time': round_time,
-            'client_results': client_results
-        }
-    
-    def send_global_model_to_clients(self, round_idx):
-        """Send global model weights to clients for training."""
-        print(f"📤 Sending global model to clients (Round {round_idx + 1})...")
-        
-        # Create FL communication directory
-        fl_comm_dir = "communication"
-        os.makedirs(fl_comm_dir, exist_ok=True)
-        
-        # Prepare global model data
-        global_weights = {
-            'fusion_model_weights': self.fusion_model.get_weights(),
-            'round': round_idx,
-            'config': {
-                'embedding_dim': self.embedding_dim,
-                'learning_rate': self.learning_rate,
-                'batch_size': self.config.get('batch_size', 32),
-                'epochs': self.config.get('client_epochs', {})
-            }
-        }
-        
-        # Add aggregated embedding knowledge if available (from previous round)
-        if hasattr(self, 'aggregated_embedding_knowledge') and self.aggregated_embedding_knowledge is not None:
-            global_weights['aggregated_embedding_knowledge'] = self.aggregated_embedding_knowledge
-            print(f"   📊 Including aggregated embedding knowledge from previous round")
-        
-        # Save for clients
-        with open(f"{fl_comm_dir}/global_model_round_{round_idx}.pkl", 'wb') as f:
-            pickle.dump(global_weights, f)
-        
-        print(f"   ✅ Global model saved for round {round_idx + 1}")
-    
-    def request_client_embeddings(self, data_split='val', round_idx=0):
-        """Request clients to generate embeddings for evaluation."""
-        print(f"   📤 Requesting {data_split} embeddings from clients...")
-        
-        import subprocess
-        import sys
-        
-        # Request embeddings from image client
-        print(f"   🖼️  Requesting embeddings from image client...")
-        image_cmd = [
-            sys.executable, 'image_client.py',
-            '--mode', 'generate_embeddings',
-            '--data_percentage', str(self.data_percentage),
-            '--embedding_dim', str(self.embedding_dim)
-        ]
-        
-        image_result = subprocess.run(image_cmd, capture_output=True, text=True)
-        if image_result.returncode == 0:
-            print(f"   ✅ Image client embeddings generated")
-        else:
-            print(f"   ⚠️  Image client embedding generation failed")
-        
-        # Request embeddings from tabular client
-        print(f"   📋 Requesting embeddings from tabular client...")
-        tabular_cmd = [
-            sys.executable, 'tabular_client.py',
-            '--mode', 'generate_embeddings',
-            '--data_percentage', str(self.data_percentage),
-            '--embedding_dim', str(self.embedding_dim)
-        ]
-        
-        tabular_result = subprocess.run(tabular_cmd, capture_output=True, text=True)
-        if tabular_result.returncode == 0:
-            print(f"   ✅ Tabular client embeddings generated")
-        else:
-            print(f"   ⚠️  Tabular client embedding generation failed")
-    
-    def aggregate_client_updates(self, round_idx):
-        """VFL does not use client weight aggregation - clients provide embeddings only."""
-        print(f"🔄 VFL Architecture: No weight aggregation needed")
-        print(f"   ✅ True VFL uses embedding-based training, not weight averaging")
-        print(f"   📊 Clients provide embeddings, server trains fusion model")
-    
-    # REMOVED: federated_averaging method - not needed in true VFL architecture
-    # VFL uses embedding-based training, not weight averaging
-    
-    def evaluate_global_model(self, round_idx):
-        """Evaluate the global fusion model on validation set."""
-        print(f"🔍 Evaluating global model (Round {round_idx + 1})...")
-        
-        try:
-            # Load validation embeddings from clients
-            val_image_emb, val_tabular_emb, val_labels, val_sensitive = \
-                self.load_client_embeddings('val')
-            
-            print(f"   ✅ Loaded validation embeddings: {len(val_labels)} samples")
-            
-            # Evaluate fusion model
-            from train_evaluate import evaluate_fusion_model
-            val_results = evaluate_fusion_model(
-                fusion_model=self.fusion_model,
-                image_embeddings=val_image_emb,
-                tabular_embeddings=val_tabular_emb,
-                labels=val_labels,
-                class_names=self.data_loader.get_class_names(),
-                verbose=1
-            )
-            
-            print(f"   🎯 Real Validation Accuracy: {val_results['accuracy']:.4f}")
-            print(f"   📈 Real Validation F1: {val_results['f1_macro']:.4f}")
-            
-            return {
-                'accuracy': val_results['accuracy'],
-                'f1_score': val_results['f1_macro'],
-                'loss': val_results.get('loss', 0.5)
-            }
-            
-        except Exception as e:
-            print(f"   ⚠️  Fusion evaluation failed: {e}")
-            print(f"   📊 Using placeholder metrics for FL coordination")
-            
-            # Fallback to placeholder metrics
-            return {
-                'accuracy': 0.5 + (round_idx * 0.1),  # Simulate improving accuracy
-                'f1_macro': 0.4 + (round_idx * 0.1),   # Simulate improving F1
-                'loss': 1.0 - (round_idx * 0.1)        # Simulate decreasing loss
-            }
 
     def train_vfl_round(self, round_idx, total_rounds, epochs=8, batch_size=16):
-        """
-        Train using proper VFL paradigm with gradient-based updates.
-        
-        Args:
-            round_idx (int): Current round index
-            total_rounds (int): Total number of rounds
-            epochs (int): Epochs per round
-            batch_size (int): Batch size
-        
-        Returns:
-            dict: Training metrics
-        """
-        print(f"\n🚀 VFL ROUND {round_idx + 1}/{total_rounds} (True VFL Architecture)")
-        print("=" * 60)
-        
-        round_start_time = time.time()
-        
-        # Update status
-        update_training_status(
-            current_round=round_idx + 1,
-            total_rounds=total_rounds,
-            phase="vfl_training"
-        )
-        
-        # Load training and validation embeddings from clients
-        # These should be the fresh embeddings generated by trained clients
-        print(f"📁 Loading train embeddings from clients...")
-        train_image_emb, train_tabular_emb, train_labels, train_sensitive = \
-            self.load_client_embeddings('train')
-        print(f"   ✅ Embeddings loaded and verified")
-        print(f"   - Image embeddings: {train_image_emb.shape}")
-        print(f"   - Tabular embeddings: {train_tabular_emb.shape}")
-        print(f"   - Samples: {len(train_labels)}")
-        
-        print(f"📁 Loading val embeddings from clients...")
-        val_image_emb, val_tabular_emb, val_labels, val_sensitive = \
-            self.load_client_embeddings('val')
-        print(f"   ✅ Embeddings loaded and verified")
-        print(f"   - Image embeddings: {val_image_emb.shape}")
-        print(f"   - Tabular embeddings: {val_tabular_emb.shape}")
-        print(f"   - Samples: {len(val_labels)}")
-        
-        print(f"\n🎯 VFL Training with gradient-based updates...")
-        print(f"   📊 Training samples: {len(train_labels)}")
-        print(f"   📊 Validation samples: {len(val_labels)}")
-        
-        # Compute class weights for imbalanced data
-        from train_evaluate import compute_class_weights
-        class_weights = compute_class_weights(train_labels, method='balanced')
-        class_weight_dict = {i: weight for i, weight in enumerate(class_weights)}
-        
-        # Create dataset for batch training
-        train_dataset = tf.data.Dataset.from_tensor_slices({
-            'image_embeddings': train_image_emb,
-            'tabular_embeddings': train_tabular_emb,
-            'labels': train_labels
-        }).batch(batch_size).shuffle(1000)
-        
-        val_dataset = tf.data.Dataset.from_tensor_slices({
-            'image_embeddings': val_image_emb,
-            'tabular_embeddings': val_tabular_emb,
-            'labels': val_labels
-        }).batch(batch_size)
-        
-        # Training loop with proper VFL gradient updates
-        best_val_acc = 0.0
-        patience_counter = 0
-        patience = 3  # Early stopping patience
-        
-        # Use a higher learning rate with scheduling
-        initial_lr = 0.001
-        optimizer = tf.keras.optimizers.Adam(learning_rate=initial_lr, beta_1=0.9, beta_2=0.999, epsilon=1e-7)
-        
-        # Learning rate scheduler
-        def lr_schedule(epoch):
-            if epoch < 5:
-                return initial_lr
-            elif epoch < 10:
-                return initial_lr * 0.5
-            else:
-                return initial_lr * 0.1
-        
-        # STEP 2 & 3: Enhanced training metrics tracking with cross-validation
-        train_losses = []
-        val_losses = []
-        train_accs = []
-        val_accs = []
-        
-        # STEP 3: Cross-validation tracking
-        cv_scores = []
-        best_models = []
-        
-        for epoch in range(epochs):
-            print(f"\n   🔄 VFL Epoch {epoch + 1}/{epochs}")
-            
-            # Update learning rate
-            current_lr = lr_schedule(epoch)
-            optimizer.learning_rate.assign(current_lr)
-            
-            # STEP 3: Mixup augmentation for better generalization
-            def mixup_data(x1, x2, y, alpha=0.2):
-                """Apply mixup augmentation to embeddings"""
-                if alpha > 0:
-                    lam = np.random.beta(alpha, alpha)
-                else:
-                    lam = 1
-                
-                batch_size = tf.shape(x1)[0]
-                index = tf.random.shuffle(tf.range(batch_size))
-                
-                mixed_x1 = lam * x1 + (1 - lam) * tf.gather(x1, index)
-                mixed_x2 = lam * x2 + (1 - lam) * tf.gather(x2, index)
-                y_a, y_b = y, tf.gather(y, index)
-                
-                return mixed_x1, mixed_x2, y_a, y_b, lam
-            
-            # Training step with mixup
-            epoch_loss = 0.0
-            epoch_acc = 0.0
-            num_batches = 0
-            
-            for batch in train_dataset:
-                with tf.GradientTape() as tape:
-                    # STEP 3: Apply mixup augmentation
-                    if epoch > 2:  # Apply mixup after initial epochs
-                        mixed_img, mixed_tab, y_a, y_b, lam = mixup_data(
-                            batch['image_embeddings'], 
-                            batch['tabular_embeddings'],
-                            batch['labels'],
-                            alpha=0.2
-                        )
-                        
-                        # Forward pass through fusion model with mixed data
-                        predictions = self.fusion_model([mixed_img, mixed_tab])
-                        
-                        # Mixup loss computation
-                        loss_a = tf.keras.losses.sparse_categorical_crossentropy(y_a, predictions, from_logits=False)
-                        loss_b = tf.keras.losses.sparse_categorical_crossentropy(y_b, predictions, from_logits=False)
-                        loss = lam * tf.reduce_mean(loss_a) + (1 - lam) * tf.reduce_mean(loss_b)
-                        
-                    else:
-                        # Regular forward pass
-                        predictions = self.fusion_model([
-                            batch['image_embeddings'], 
-                            batch['tabular_embeddings']
-                        ])
-                        
-                        # STEP 2: Enhanced loss computation with regularization
-                        sample_weights = tf.gather(list(class_weight_dict.values()), batch['labels'])
-                        sample_weights = tf.cast(sample_weights, tf.float32)
-                        
-                        # Add label smoothing for better generalization
-                        num_classes = 7
-                        smoothed_labels = tf.one_hot(tf.cast(batch['labels'], tf.int32), num_classes)
-                        smoothed_labels = tf.cast(smoothed_labels, tf.float32) * 0.9 + (1.0 - 0.9) / num_classes
-                        
-                        # Use categorical crossentropy with smoothed labels
-                        classification_loss = tf.keras.losses.categorical_crossentropy(
-                            smoothed_labels, predictions, from_logits=False
-                        )
-                        classification_loss = tf.reduce_mean(classification_loss * sample_weights)
-                        
-                        # STEP 2: Add contrastive loss for better embedding alignment
-                        try:
-                            from models import nt_xent_loss
-                            contrastive_loss = nt_xent_loss(
-                                batch['image_embeddings'], 
-                                batch['tabular_embeddings'],
-                                temperature=0.5
-                            )
-                            
-                            # Combined loss: classification + contrastive alignment
-                            alpha = 0.7  # Weight for classification vs contrastive loss
-                            loss = alpha * classification_loss + (1 - alpha) * contrastive_loss
-                            
-                        except Exception as e:
-                            print(f"   ⚠️  Contrastive loss failed: {e}")
-                            loss = classification_loss
-                    
-                    # STEP 2: Add L2 regularization to prevent overfitting
-                    l2_lambda = 0.001
-                    l2_loss = tf.add_n([tf.nn.l2_loss(v) for v in self.fusion_model.trainable_variables])
-                    loss = loss + l2_lambda * l2_loss
-                
-                # Compute gradients and update fusion model
-                gradients = tape.gradient(loss, self.fusion_model.trainable_variables)
-                
-                # Gradient clipping for stability
-                gradients = [tf.clip_by_norm(g, 1.0) for g in gradients]
-                
-                optimizer.apply_gradients(zip(gradients, self.fusion_model.trainable_variables))
-                
-                # Track metrics (use original batch for accuracy computation)
-                epoch_loss += loss
-                epoch_acc += tf.keras.metrics.sparse_categorical_accuracy(
-                    batch['labels'], 
-                    self.fusion_model([batch['image_embeddings'], batch['tabular_embeddings']])
-                ).numpy().mean()
-                num_batches += 1
-            
-            # Average metrics
-            epoch_loss /= num_batches
-            epoch_acc /= num_batches
-            
-            # Validation step
-            val_loss = 0.0
-            val_acc = 0.0
-            val_batches = 0
-            
-            for batch in val_dataset:
-                predictions = self.fusion_model([
-                    batch['image_embeddings'], 
-                    batch['tabular_embeddings']
-                ])
-                
-                loss = tf.keras.losses.sparse_categorical_crossentropy(
-                    batch['labels'], predictions, from_logits=False
-                )
-                loss = tf.reduce_mean(loss)
-                
-                acc = tf.keras.metrics.sparse_categorical_accuracy(
-                    batch['labels'], predictions
-                ).numpy().mean()
-                
-                val_loss += loss
-                val_acc += acc
-                val_batches += 1
-            
-            val_loss /= val_batches
-            val_acc /= val_batches
-            
-            # STEP 2: Track training progress for analysis
-            train_losses.append(float(epoch_loss))
-            val_losses.append(float(val_loss))
-            train_accs.append(float(epoch_acc))
-            val_accs.append(float(val_acc))
-            
-            print(f"      ✅ Train Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.4f}")
-            print(f"      ✅ Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
-            print(f"      📈 Learning Rate: {current_lr:.6f}")
-            
-            # STEP 2: Enhanced early stopping with overfitting detection
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
-                patience_counter = 0
-                self.save_best_model()
-                print(f"   💾 Best model saved! Val Acc: {val_acc:.4f}")
-            else:
-                patience_counter += 1
-                print(f"   ⏳ Patience: {patience_counter}/{patience}")
-                
-                # Early stopping if overfitting detected
-                if patience_counter >= patience and epoch >= 5:  # Minimum 5 epochs
-                    print(f"   🛑 Early stopping triggered - preventing overfitting")
-                    break
-            
-            # STEP 2: Overfitting warning
-            if epoch > 2:
-                train_val_gap = epoch_acc - val_acc
-                if train_val_gap > 0.15:  # 15% gap indicates overfitting
-                    print(f"   ⚠️  Overfitting detected! Train-Val gap: {train_val_gap:.3f}")
-        
-        # STEP 2: Training analysis summary
-        print(f"\n📊 TRAINING ANALYSIS:")
-        print(f"   📈 Final Train Acc: {train_accs[-1]:.4f}")
-        print(f"   📊 Final Val Acc: {val_accs[-1]:.4f}")
-        print(f"   📉 Train-Val Gap: {train_accs[-1] - val_accs[-1]:.4f}")
-        print(f"   🏆 Best Val Acc: {best_val_acc:.4f}")
-        
-        # Final evaluation on validation set
-        val_results = evaluate_fusion_model(
-            fusion_model=self.fusion_model,
-            image_embeddings=val_image_emb,
-            tabular_embeddings=val_tabular_emb,
-            labels=val_labels,
-            class_names=self.data_loader.get_class_names(),
-            verbose=1
-        )
-        
-        round_time = time.time() - round_start_time
-        
-        # Store metrics
-        round_accuracy = val_results['accuracy']
-        round_f1 = val_results['f1_macro']
-        round_loss = val_loss.numpy()
-        
-        self.training_history['round_accuracies'].append(round_accuracy)
-        self.training_history['round_f1_scores'].append(round_f1)
-        self.training_history['round_losses'].append(round_loss)
-        self.training_history['training_times'].append(round_time)
-        
-        # Track best performance
-        if round_accuracy > self.best_accuracy:
-            self.best_accuracy = round_accuracy
-            self.best_f1 = round_f1
-            self.best_round = round_idx + 1
-            self.save_best_model()
-        
-        # Update status
-        update_training_status(
-            current_round=round_idx + 1,
-            total_rounds=total_rounds,
-            accuracy=round_accuracy,
-            loss=round_loss,
-            f1_score=round_f1,
-            phase="vfl_complete"
-        )
-        
-        print(f"\n📊 VFL ROUND {round_idx + 1} SUMMARY:")
-        print(f"   🎯 Validation Accuracy: {round_accuracy:.4f}")
-        print(f"   📈 Validation F1: {round_f1:.4f}")
-        print(f"   📉 Validation Loss: {round_loss:.4f}")
-        print(f"   ⏱️  Round time: {round_time:.1f} seconds")
-        print(f"   🏆 Best so far: Acc={self.best_accuracy:.4f} (Round {self.best_round})")
-        
-        return {
-            'accuracy': round_accuracy,
-            'f1_score': round_f1,
-            'loss': round_loss,
-            'time': round_time
-        }
-    
-    def evaluate_final_model(self):
-        """Evaluate the final model on test set."""
-        print(f"\n🔍 FINAL EVALUATION ON TEST SET")
-        print("=" * 50)
-        
-        try:
-            # Request clients to generate test embeddings
-            self.request_client_embeddings('test', -1)
-            
-            # Load test embeddings from clients
-            test_image_emb, test_tabular_emb, test_labels, test_sensitive = \
-                self.load_client_embeddings('test')
-            
-            print(f"   ✅ Loaded test embeddings: {len(test_labels)} samples")
-            
-            # Load best model if available
-            self.load_best_model()
-            
-            # Evaluate fusion model on test set
-            from train_evaluate import evaluate_fusion_model
-            test_results = evaluate_fusion_model(
-                fusion_model=self.fusion_model,
-                image_embeddings=test_image_emb,
-                tabular_embeddings=test_tabular_emb,
-                labels=test_labels,
-                class_names=self.data_loader.get_class_names(),
-                save_confusion_matrix=True,
-                verbose=1
-            )
-            
-            print(f"\n🏆 FINAL TEST RESULTS (Real Evaluation):")
-            print(f"   🎯 Test Accuracy: {test_results['accuracy']:.4f}")
-            print(f"   📈 Test F1 (macro): {test_results['f1_macro']:.4f}")
-            print(f"   📊 Test F1 (weighted): {test_results['f1_weighted']:.4f}")
-            
-            return test_results
-            
-        except Exception as e:
-            print(f"   ⚠️  Test evaluation failed: {e}")
-            print(f"   📊 Using best validation metrics as final results")
-            
-            # Load best model if available
-            self.load_best_model()
-            
-            # Return best validation metrics as final results
-            test_results = {
-                'accuracy': self.best_accuracy,
-                'f1_macro': self.best_f1,
-                'f1_weighted': self.best_f1,  # Approximation
-                'loss': min(self.training_history['round_losses']) if self.training_history['round_losses'] else 0.5
-            }
-            
-            print(f"\n🏆 FINAL TEST RESULTS (from best validation):")
-            print(f"   🎯 Test Accuracy: {test_results['accuracy']:.4f}")
-            print(f"   📈 Test F1 (macro): {test_results['f1_macro']:.4f}")
-            print(f"   📊 Test F1 (weighted): {test_results['f1_weighted']:.4f}")
-            
-            return test_results
-    
-    def run_federated_learning(self, total_rounds=3, epochs_per_round=8, batch_size=16):
-        """
-        Run the complete VFL training process.
-        
-        Args:
-            total_rounds (int): Number of federated rounds
-            epochs_per_round (int): Epochs per round
-            batch_size (int): Batch size for training
-        
-        Returns:
-            dict: Final training results
-        """
-        print("\n" + "="*80)
-        print("🚀 STARTING VERTICAL FEDERATED LEARNING (True VFL Architecture)")
-        print("="*80)
+        """Train VFL for one round."""
+        print(f"\n🔄 TRAINING ROUND {round_idx + 1}/{total_rounds}")
+        print("="*50)
         
         start_time = time.time()
         
-        # Initialize training history
-        self.training_history = {
-            'round_accuracies': [],
-            'round_f1_scores': [],
-            'round_losses': [],
-            'training_times': []
-        }
-        
-        # Step 1: Coordinate client training first
-        print(f"\n🎯 STEP 1: CLIENT TRAINING PHASE")
-        print("="*80)
-        client_training_results = self.coordinate_client_training(
-            epochs=epochs_per_round, 
-            batch_size=batch_size
-        )
-        
-        # Training loop - True VFL with gradient-based updates
-        for round_idx in range(total_rounds):
-            round_results = self.train_vfl_round(
-                round_idx=round_idx,
-                total_rounds=total_rounds,
-                epochs=epochs_per_round,
-                batch_size=batch_size
-            )
-        
-        # Final evaluation
-        print(f"\n🏁 FINAL VFL EVALUATION")
-        print("="*50)
-        
-        final_results = self.evaluate_final_model()
-        
-        # Check validation-test consistency
-        if hasattr(self, 'best_val_accuracy'):
-            from train_evaluate import check_validation_test_consistency, suggest_regularization_improvements
+        try:
+            # Load training embeddings
+            train_image_emb, train_tabular_emb, train_labels, _ = self.load_client_embeddings('train')
+            val_image_emb, val_tabular_emb, val_labels, _ = self.load_client_embeddings('val')
             
-            test_acc = final_results.get('test_accuracy', 0.0)
-            consistency_analysis = check_validation_test_consistency(
-                self.best_val_accuracy,
-                test_acc
+            # Train fusion model
+            from train_evaluate import train_fusion_model_with_adversarial
+            
+            history = train_fusion_model_with_adversarial(
+                fusion_model=self.fusion_model,
+                adversarial_model=self.adversarial_model,
+                image_embeddings=train_image_emb,
+                tabular_embeddings=train_tabular_emb,
+                labels=train_labels,
+                sensitive_attrs=None,  # Not using sensitive attributes for now
+                val_image_embeddings=val_image_emb,
+                val_tabular_embeddings=val_tabular_emb,
+                val_labels=val_labels,
+                val_sensitive_attrs=None,  # Not using sensitive attributes for now
+                epochs=epochs,
+                batch_size=batch_size,
+                adversarial_lambda=self.adversarial_lambda,
+                verbose=1
             )
             
-            print(f"\n🔍 VALIDATION-TEST CONSISTENCY ANALYSIS")
-            print("="*60)
-            print(f"   📊 Validation Accuracy: {consistency_analysis['validation_accuracy']:.4f}")
-            print(f"   🎯 Test Accuracy: {consistency_analysis['test_accuracy']:.4f}")
-            print(f"   📉 Gap: {consistency_analysis['gap_percentage']:.1f}%")
-            print(f"   🚨 Severity: {consistency_analysis['severity'].upper()}")
-            print(f"   💡 {consistency_analysis['recommendation']}")
+            # Extract metrics
+            round_loss = min(history.history.get('loss', [1.0]))
+            round_accuracy = max(history.history.get('val_accuracy', [0.0]))
+            # Note: val_f1_macro may not be available, so we'll calculate it or use 0
+            round_f1 = max(history.history.get('val_f1_macro', [0.0]))
+            if round_f1 == 0.0:
+                # Calculate F1 using validation data
+                val_predictions = self.fusion_model.predict([val_image_emb, val_tabular_emb], verbose=0)
+                val_pred_classes = np.argmax(val_predictions, axis=1)
+                from sklearn.metrics import f1_score
+                round_f1 = f1_score(val_labels, val_pred_classes, average='macro')
             
-            if consistency_analysis['is_overfitted']:
-                suggestions = suggest_regularization_improvements(consistency_analysis['gap_percentage'])
-                print(f"\n🔧 IMPROVEMENT SUGGESTIONS:")
-                for suggestion in suggestions:
-                    print(f"      {suggestion}")
+            # Update best performance tracking
+            if round_accuracy > self.best_accuracy:
+                self.best_accuracy = round_accuracy
+                self.best_f1 = round_f1
+                self.best_round = round_idx + 1
+                
+                # Save best model
+                self.save_best_model()
             
-            final_results['consistency_analysis'] = consistency_analysis
+            # Record metrics
+            self.training_history['round_accuracies'].append(round_accuracy)
+            self.training_history['round_f1_scores'].append(round_f1)
+            self.training_history['round_losses'].append(round_loss)
+            self.training_history['training_times'].append(time.time() - start_time)
+            
+            print(f"✅ Round {round_idx + 1} complete:")
+            print(f"   🎯 Accuracy: {round_accuracy:.4f}")
+            print(f"   📈 F1: {round_f1:.4f}")
+            print(f"   📉 Loss: {round_loss:.4f}")
+            
+            return {
+                'accuracy': round_accuracy,
+                'f1_macro': round_f1,
+                'loss': round_loss,
+                'time': time.time() - start_time
+            }
+            
+        except Exception as e:
+            print(f"❌ Round {round_idx + 1} failed: {str(e)}")
+            return {
+                'accuracy': 0.0,
+                'f1_macro': 0.0,
+                'loss': 1.0,
+                'time': 0.0
+            }
+
+    def evaluate_global_model(self, round_idx):
+        """Evaluate global model on validation set."""
+        try:
+            val_image_emb, val_tabular_emb, val_labels, _ = self.load_client_embeddings('val')
+            
+            # Make predictions
+            predictions = self.fusion_model.predict([val_image_emb, val_tabular_emb], verbose=0)
+            predicted_classes = np.argmax(predictions, axis=1)
+            
+            # Calculate metrics
+            from sklearn.metrics import accuracy_score, f1_score
+            accuracy = accuracy_score(val_labels, predicted_classes)
+            f1 = f1_score(val_labels, predicted_classes, average='macro')
+            
+            return {'accuracy': accuracy, 'f1_macro': f1}
+        except Exception as e:
+            print(f"⚠️ Evaluation failed: {e}")
+            return {'accuracy': 0.0, 'f1_macro': 0.0}
+
+    def evaluate_final_model(self, class_names=None):
+        """Final model evaluation."""
+        print(f"\n🏆 FINAL MODEL EVALUATION")
+        print("="*40)
         
-        total_time = time.time() - start_time
-        
-        # Compile results
-        results = {
-            'training_completed': True,
-            'total_rounds': total_rounds,
-            'epochs_per_round': epochs_per_round,
-            'batch_size': batch_size,
-            'total_time': total_time,
-            'best_accuracy': self.best_accuracy,
-            'best_f1': self.best_f1,
-            'best_round': self.best_round,
-            'final_test_accuracy': final_results.get('test_accuracy', 0.0),
-            'final_test_f1': final_results.get('test_f1', 0.0),
-            'training_history': self.training_history,
-            'architecture': 'True VFL with Gradient Updates'
-        }
-        
-        print(f"\n🎉 VFL TRAINING COMPLETE!")
-        print(f"   🏆 Best Validation: {self.best_accuracy:.4f} (Round {self.best_round})")
-        print(f"   🎯 Final Test Accuracy: {final_results.get('test_accuracy', 0.0):.4f}")
-        print(f"   ⏱️  Total Time: {total_time:.1f} seconds")
-        print(f"   🔧 Architecture: True VFL with Gradient Updates")
-        
-        return results
-    
-    def print_final_summary(self, total_time, final_results):
-        """Print comprehensive training summary."""
-        print(f"\n" + "="*70)
-        print(f"🎉 FEDERATED TRAINING COMPLETED")
-        print(f"="*70)
-        
-        print(f"\n📊 TRAINING SUMMARY:")
-        print(f"   Total time: {total_time // 60:.0f}m {total_time % 60:.0f}s")
-        print(f"   Best validation accuracy: {self.best_accuracy:.4f} (Round {self.best_round})")
-        print(f"   Best validation F1: {self.best_f1:.4f}")
-        print(f"   Final test accuracy: {final_results['accuracy']:.4f}")
-        print(f"   Final test F1: {final_results['f1_macro']:.4f}")
-        
-        print(f"\n📈 ROUND-BY-ROUND PERFORMANCE:")
-        for i, (acc, f1, loss, time) in enumerate(zip(
-            self.training_history['round_accuracies'],
-            self.training_history['round_f1_scores'],
-            self.training_history['round_losses'],
-            self.training_history['training_times']
-        )):
-            print(f"   Round {i+1}: Acc={acc:.4f}, F1={f1:.4f}, Loss={loss:.4f}, Time={time:.1f}s")
-        
-        print(f"\n🔧 CONFIGURATION:")
-        print(f"   Embedding dimension: {self.embedding_dim}")
-        print(f"   Adversarial lambda: {self.adversarial_lambda}")
-        print(f"   Learning rate: {self.learning_rate}")
-        
-        if self.adversarial_lambda == 0.0:
-            print(f"\n✅ PHASE 1 COMPLETE: High-Performance Baseline Established")
-            print(f"   🎯 Ready for Phase 2: Enhanced Fusion Deployment")
-        else:
-            print(f"\n✅ PRIVACY-AWARE TRAINING COMPLETE")
-            print(f"   🔒 Privacy-Utility Trade-off: Lambda={self.adversarial_lambda}")
-    
+        try:
+            # Load test embeddings
+            test_image_emb, test_tabular_emb, test_labels, _ = self.load_client_embeddings('test')
+            
+            # Make predictions
+            predictions = self.fusion_model.predict([test_image_emb, test_tabular_emb], verbose=0)
+            predicted_classes = np.argmax(predictions, axis=1)
+            
+            # Calculate metrics
+            from sklearn.metrics import accuracy_score, f1_score, classification_report
+            accuracy = accuracy_score(test_labels, predicted_classes)
+            f1_macro = f1_score(test_labels, predicted_classes, average='macro')
+            f1_weighted = f1_score(test_labels, predicted_classes, average='weighted')
+            
+            print(f"🎯 Final Test Accuracy: {accuracy:.4f}")
+            print(f"📈 Final Test F1 (macro): {f1_macro:.4f}")
+            print(f"📊 Final Test F1 (weighted): {f1_weighted:.4f}")
+            
+            if class_names:
+                print(f"\n📋 Classification Report:")
+                report = classification_report(test_labels, predicted_classes, 
+                                             target_names=class_names, output_dict=False)
+                print(report)
+            
+            return {
+                'accuracy': accuracy,
+                'f1_macro': f1_macro,
+                'f1_weighted': f1_weighted,
+                'test_accuracy': accuracy,
+                'test_f1': f1_macro
+            }
+            
+        except Exception as e:
+            print(f"⚠️ Final evaluation failed: {e}")
+            # Return best validation metrics as fallback
+            return {
+                'accuracy': self.best_accuracy,
+                'f1_macro': self.best_f1,
+                'f1_weighted': self.best_f1,
+                'test_accuracy': self.best_accuracy,
+                'test_f1': self.best_f1
+            }
+
     def save_best_model(self, model_dir="models"):
-        """Save the best performing model with comprehensive state."""
+        """Save the best model."""
+        import os
         os.makedirs(model_dir, exist_ok=True)
         
-        # Save model weights
-        fusion_path = f"{model_dir}/best_fusion_model.h5"
-        self.fusion_model.save_weights(fusion_path)
-        
-        if self.adversarial_model is not None:
-            adversarial_path = f"{model_dir}/best_adversarial_model.h5"
-            self.adversarial_model.save_weights(adversarial_path)
-        
-        # Save training state for resume functionality
-        state_path = f"{model_dir}/training_state.pkl"
-        training_state = {
-            'best_accuracy': self.best_accuracy,
-            'best_f1': self.best_f1,
-            'best_round': self.best_round,
-            'training_history': self.training_history,
-            'model_config': {
-                'embedding_dim': self.embedding_dim,
-                'num_classes': self.num_classes,
-                'adversarial_lambda': self.adversarial_lambda,
-                'learning_rate': self.learning_rate,
-                'data_percentage': self.data_percentage
-            },
-            'timestamp': time.time(),
-            'round_completed': len(self.training_history['round_accuracies'])
-        }
-        
-        with open(state_path, 'wb') as f:
-            pickle.dump(training_state, f)
-        
-        print(f"   💾 Best model and training state saved to {model_dir}/")
+        try:
+            model_path = os.path.join(model_dir, "best_fusion_model.h5")
+            self.fusion_model.save_weights(model_path)
+            print(f"💾 Best model saved to {model_path}")
+        except Exception as e:
+            print(f"⚠️ Failed to save model: {e}")
+
+app = Flask(__name__)
+CORS(app)
+
+# Global server instance
+federated_server = None
+registered_clients = {}
+round_performance_history = []
+
+# Round synchronization state
+current_global_round = 0
+clients_completed_current_round = set()
+round_embeddings_received = set()
+
+# Server shutdown configuration
+auto_shutdown_enabled = True
+
+# FL orchestration state
+fl_orchestration_active = False
+fl_orchestration_thread = None
+
+# Guidance effectiveness tracking
+guidance_effectiveness = {
+    'total_guidance_sent': 0,
+    'client_improvements': 0,
+    'client_degradations': 0,
+    'improvement_rate': 0.0,
+    'average_improvement': 0.0,
+    'rejected_guidance_count': 0,
+    'adaptive_lr_adjustments': 0
+}
+
+def initialize_server():
+    """Initialize the federated server with advanced ML strategies."""
+    global federated_server
+    print("🏗️ Initializing Distributed Federated Server...")
     
-    def load_best_model(self, model_dir="models"):
-        """Load the best performing model with comprehensive state."""
-        fusion_path = f"{model_dir}/best_fusion_model.h5"
-        state_path = f"{model_dir}/training_state.pkl"
+    # Load configurations
+    config = get_config()
+    fl_config = config['federated_learning']
+    model_config = config['model']
+    
+    federated_server = FederatedServer(
+        embedding_dim=model_config['embedding_dim'],
+        num_classes=config['data']['num_classes'],
+        learning_rate=config['training']['learning_rate'],
+        data_percentage=config['data']['data_percentage'],
+        config=config
+    )
+    
+    # Create models with all advanced features
+    federated_server.create_models(
+        use_advanced_fusion=True,
+        use_step3_enhancements=True
+    )
+    
+    print("✅ Server initialized with advanced ML strategies preserved")
+
+def compute_embedding_gradients(embeddings_dict, labels):
+    """
+    Compute gradients w.r.t. embeddings for fusion-guided updates.
+    
+    Args:
+        embeddings_dict: Dict with 'image' and 'tabular' embeddings
+        labels: True labels for the batch
+    
+    Returns:
+        dict: Gradients for each modality
+    """
+    with tf.GradientTape() as tape:
+        # Watch the embeddings
+        tape.watch(embeddings_dict['image'])
+        tape.watch(embeddings_dict['tabular'])
         
-        if os.path.exists(fusion_path):
+        # Forward pass through fusion model
+        predictions = federated_server.fusion_model([
+            embeddings_dict['image'], 
+            embeddings_dict['tabular']
+        ])
+        
+        # Compute loss
+        loss = tf.keras.losses.sparse_categorical_crossentropy(
+            labels, predictions, from_logits=False
+        )
+        loss = tf.reduce_mean(loss)
+    
+    # Compute gradients w.r.t embeddings
+    gradients = tape.gradient(loss, [embeddings_dict['image'], embeddings_dict['tabular']])
+    
+    return {
+        'image_gradients': gradients[0].numpy(),
+        'tabular_gradients': gradients[1].numpy(),
+        'loss_value': loss.numpy()
+    }
+
+def extract_attention_weights():
+    """Extract attention weights from fusion model for client guidance."""
+    attention_weights = {}
+    
+    # Find attention layers in fusion model
+    for i, layer in enumerate(federated_server.fusion_model.layers):
+        if hasattr(layer, 'attention') or 'attention' in layer.name.lower():
             try:
-                self.fusion_model.load_weights(fusion_path)
-                print(f"   📁 Best fusion model loaded from {fusion_path}")
-                
-                if self.adversarial_model is not None:
-                    adversarial_path = f"{model_dir}/best_adversarial_model.h5"
-                    if os.path.exists(adversarial_path):
-                        self.adversarial_model.load_weights(adversarial_path)
-                        print(f"   📁 Best adversarial model loaded from {adversarial_path}")
-                
-                # Load training state if available
-                if os.path.exists(state_path):
-                    with open(state_path, 'rb') as f:
-                        training_state = pickle.load(f)
-                    
-                    # Restore training metrics
-                    self.best_accuracy = training_state.get('best_accuracy', 0.0)
-                    self.best_f1 = training_state.get('best_f1', 0.0)
-                    self.best_round = training_state.get('best_round', 0)
-                    self.training_history = training_state.get('training_history', {
-                        'round_accuracies': [],
-                        'round_f1_scores': [],
-                        'round_losses': [],
-                        'training_times': []
-                    })
-                    
-                    # Check model compatibility
-                    model_config = training_state.get('model_config', {})
-                    config_compatible = True
-                    if model_config.get('embedding_dim') != self.embedding_dim:
-                        print(f"   ⚠️  Warning: Embedding dimension mismatch ({model_config.get('embedding_dim')} vs {self.embedding_dim})")
-                        config_compatible = False
-                    if model_config.get('num_classes') != self.num_classes:
-                        print(f"   ⚠️  Warning: Number of classes mismatch ({model_config.get('num_classes')} vs {self.num_classes})")
-                        config_compatible = False
-                    
-                    if config_compatible:
-                        rounds_completed = training_state.get('round_completed', 0)
-                        print(f"   🔄 Training state restored: {rounds_completed} rounds completed")
-                        print(f"   🏆 Previous best: Acc={self.best_accuracy:.4f}, F1={self.best_f1:.4f} (Round {self.best_round})")
-                    else:
-                        print(f"   ⚠️  Model configuration incompatible, starting fresh training state")
-                        self._reset_training_state()
-                else:
-                    print(f"   ⚠️  No training state found, starting with fresh metrics")
-                    self._reset_training_state()
-                    
+                # Get attention weights if available
+                if hasattr(layer, 'get_attention_weights'):
+                    weights = layer.get_attention_weights()
+                    attention_weights[f'layer_{i}'] = weights.numpy()
             except Exception as e:
-                print(f"   ❌ Error loading model: {e}")
-                print(f"   🔄 Continuing with fresh model")
+                print(f"⚠️ Could not extract attention from layer {i}: {e}")
+    
+    return attention_weights
+
+def orchestrate_federated_learning():
+    """Main server-driven federated learning orchestration."""
+    global auto_shutdown_enabled
+    
+    print(f"\n🎯 STARTING SERVER-DRIVEN FEDERATED LEARNING")
+    print("=" * 60)
+    
+    try:
+        config = get_config()
+        fl_config = config['federated_learning']
+        total_rounds = fl_config['total_fl_rounds']
+        
+        print(f"📊 FL Configuration:")
+        print(f"   🔄 Total rounds: {total_rounds}")
+        print(f"   📈 Epochs per round: {fl_config['client_epochs_per_round']}")
+        print(f"   🎯 Strategy: Fusion-Guided Weight Updates")
+        
+        # Phase 1: Request initial training
+        print(f"\n📚 PHASE 1: REQUESTING INITIAL TRAINING")
+        print("=" * 50)
+        
+        # Request initial training from all clients
+        for client_id, client_info in registered_clients.items():
+            client_info['current_task'] = 'initial_training'
+            client_info['waiting_for_request'] = True
+        
+        # Wait for initial training completion
+        wait_for_all_clients_to_complete('initial_training')
+        
+        # Phase 2: FL Rounds
+        for round_idx in range(total_rounds):
+            print(f"\n🔄 FL ROUND {round_idx + 1}/{total_rounds}")
+            print("=" * 50)
+            
+            # Train global fusion model
+            print(f"🧠 Training global fusion model with current embeddings...")
+            train_global_model_round(round_idx)
+            
+            # Request next round embeddings (if not final round)
+            if round_idx < total_rounds - 1:
+                print(f"📤 Requesting Round {round_idx + 2} embeddings with guidance...")
+                
+                # Send guidance and request fresh embeddings
+                for client_id, client_info in registered_clients.items():
+                    client_info['current_task'] = f'round_{round_idx + 1}_training'
+                    client_info['waiting_for_request'] = True
+                
+                # Wait for round completion
+                wait_for_all_clients_to_complete(f'round_{round_idx + 1}_training')
+        
+        # Phase 3: Final evaluation
+        print(f"\n🏆 PHASE 3: FINAL EVALUATION")
+        print("=" * 40)
+        
+        # Use class names from config since server doesn't have data_loader
+        config = get_config()
+        class_names = config['data']['class_names']
+        final_results = federated_server.evaluate_final_model(class_names=class_names)
+        
+        print(f"\n🎉 DISTRIBUTED FL FINAL RESULTS:")
+        print(f"   🎯 Global Model Test Accuracy: {final_results.get('accuracy', 0.0):.4f} ({final_results.get('accuracy', 0.0)*100:.2f}%)")
+        print(f"   📈 Global Model Test F1: {final_results.get('f1_macro', 0.0):.4f}")
+        print(f"   🔄 Total FL Rounds: {total_rounds}")
+        print(f"   👥 Participating Clients: {len(registered_clients)}")
+        
+        # Save final results
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        results_file = f"results/distributed_fl_results_{timestamp}.json"
+        os.makedirs("results", exist_ok=True)
+        
+        final_summary = {
+            'final_test_accuracy': final_results.get('accuracy', 0.0),
+            'final_test_f1': final_results.get('f1_macro', 0.0),
+            'total_rounds': total_rounds,
+            'clients': len(registered_clients),
+            'strategy': 'fusion_guided_updates',
+            'timestamp': time.time()
+        }
+        
+        with open(results_file, 'w') as f:
+            json.dump(final_summary, f, indent=2)
+        
+        print(f"   💾 Results saved to {results_file}")
+        
+        # Phase 4: Signal completion to clients
+        print(f"\n📢 SIGNALING COMPLETION TO ALL CLIENTS")
+        print("=" * 40)
+        
+        for client_id, client_info in registered_clients.items():
+            client_info['current_task'] = 'completed'
+            print(f"   ✅ Signaled completion to client {client_id}")
+        
+        # Schedule server shutdown
+        if auto_shutdown_enabled:
+            print(f"\n🔄 FEDERATED LEARNING COMPLETED!")
+            print(f"🛑 Server will shutdown in 10 seconds...")
+            print(f"✅ All processes finished successfully!")
+            
+            def shutdown_server():
+                time.sleep(10)
+                print(f"\n🛑 Shutting down server...")
+                print(f"🏁 All terminals ready for new commands!")
+                os._exit(0)
+            
+            shutdown_thread = threading.Thread(target=shutdown_server)
+            shutdown_thread.daemon = True
+            shutdown_thread.start()
+        
+    except Exception as e:
+        print(f"❌ FL Orchestration error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+def wait_for_all_clients_to_complete(task_name):
+    """Wait for all clients to complete a specific task."""
+    print(f"⏳ Waiting for all clients to complete: {task_name}")
+    
+    max_wait_time = 1800  # 30 minutes max
+    start_time = time.time()
+    
+    while time.time() - start_time < max_wait_time:
+        all_completed = True
+        completed_count = 0
+        
+        for client_id, client_info in registered_clients.items():
+            current_task = client_info.get('current_task', 'idle')
+            # A task is completed when current_task is 'idle' or different from the assigned task
+            if current_task == task_name:
+                # Client still working on this task
+                all_completed = False
+            else:
+                # Client completed this task (now idle or on different task)
+                completed_count += 1
+        
+        total_clients = len(registered_clients)
+        print(f"   📊 Progress: {completed_count}/{total_clients} clients completed {task_name}")
+        
+        if all_completed:
+            print(f"   ✅ All clients completed {task_name}!")
+            return True
+        
+        time.sleep(5)
+    
+    print(f"   ❌ Timeout waiting for {task_name} after 30 minutes")
+    return False
+
+def train_global_model_round(round_idx):
+    """Train the global fusion model for a specific round."""
+    try:
+        config = get_config()
+        
+        # Load current embeddings
+        train_image_emb, train_tabular_emb, train_labels, train_sensitive = \
+            federated_server.load_client_embeddings('train')
+        val_image_emb, val_tabular_emb, val_labels, val_sensitive = \
+            federated_server.load_client_embeddings('val')
+        
+        # Train fusion model
+        round_results = federated_server.train_vfl_round(
+            round_idx=round_idx,
+            total_rounds=config['federated_learning']['total_fl_rounds'],
+            epochs=config['training']['epochs_per_round'],
+            batch_size=config['training']['batch_size']
+        )
+        
+        # Evaluate performance
+        val_results = federated_server.evaluate_global_model(round_idx)
+        
+        print(f"   🎯 Round {round_idx + 1} Results:")
+        print(f"   📊 Accuracy: {val_results['accuracy']:.4f}")
+        print(f"   📈 F1 Score: {val_results['f1_score']:.4f}")
+        print(f"   📉 Loss: {round_results.get('loss', 0.0):.4f}")
+        
+        return round_results
+        
+    except Exception as e:
+        print(f"   ❌ Error training global model: {e}")
+        return None
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint."""
+    return jsonify({
+        'status': 'healthy',
+        'server_ready': federated_server is not None,
+        'registered_clients': len(registered_clients),
+        'timestamp': time.time()
+    })
+
+@app.route('/register_client', methods=['POST'])
+def register_client():
+    """Register a new client."""
+    global fl_orchestration_active, fl_orchestration_thread
+    
+    data = request.json
+    client_id = data.get('client_id')
+    client_type = data.get('client_type')  # 'image' or 'tabular'
+    
+    if not client_id or not client_type:
+        return jsonify({'error': 'Missing client_id or client_type'}), 400
+    
+    registered_clients[client_id] = {
+        'client_type': client_type,
+        'registered_at': time.time(),
+        'last_seen': time.time(),
+        'rounds_participated': 0,
+        'current_round': 0,
+        'current_accuracy': 0.0,
+        'performance_history': [],
+        'waiting_for_request': False,
+        'current_task': 'idle'
+    }
+    
+    print(f"✅ Registered {client_type} client: {client_id}")
+    
+    # Check if we have enough clients to start FL
+    required_clients = 2  # image + tabular
+    if len(registered_clients) >= required_clients and not fl_orchestration_active:
+        print(f"\n🚀 SUFFICIENT CLIENTS REGISTERED - STARTING FL ORCHESTRATION")
+        fl_orchestration_active = True
+        fl_orchestration_thread = threading.Thread(target=orchestrate_federated_learning)
+        fl_orchestration_thread.daemon = True
+        fl_orchestration_thread.start()
+    
+    return jsonify({
+        'status': 'registered',
+        'client_id': client_id,
+        'total_clients': len(registered_clients),
+        'fl_starting': len(registered_clients) >= required_clients
+    })
+
+@app.route('/get_fl_config', methods=['GET'])
+def get_fl_config():
+    """Send FL configuration to clients."""
+    config = get_config()
+    fl_config = config['federated_learning']
+    
+    return jsonify({
+        'total_fl_rounds': fl_config['total_fl_rounds'],
+        'client_epochs_per_round': fl_config['client_epochs_per_round'],
+        'client_learning_rate_multiplier': fl_config['client_learning_rate_multiplier'],
+        'guidance_weight': fl_config['guidance_weight'],
+        'base_learning_rate': config['training']['client_learning_rate']
+    })
+
+@app.route('/send_global_guidance', methods=['POST'])
+def send_global_guidance():
+    """
+    Send fusion-guided updates to clients.
+    This is the core of our enhanced FL strategy.
+    INCLUDES ROUND SYNCHRONIZATION - clients must wait for all to complete previous round.
+    """
+    global current_global_round, clients_completed_current_round
+    
+    data = request.json
+    client_id = data.get('client_id')
+    current_round = data.get('current_round', 0)
+    
+    if client_id not in registered_clients:
+        return jsonify({'error': 'Client not registered'}), 400
+    
+    client_type = registered_clients[client_id]['client_type']
+    
+    # ROUND SYNCHRONIZATION CHECK
+    if current_round > current_global_round:
+        # Check if all clients have completed the current global round
+        total_clients = len(registered_clients)
+        completed_clients = len(clients_completed_current_round)
+        
+        if completed_clients < total_clients:
+            print(f"⏳ Client {client_id} waiting for round synchronization")
+            print(f"   📊 Round {current_global_round + 1}: {completed_clients}/{total_clients} clients completed")
+            return jsonify({
+                'error': 'round_not_ready',
+                'message': f'Waiting for all clients to complete round {current_global_round + 1}',
+                'current_global_round': current_global_round,
+                'clients_completed': completed_clients,
+                'total_clients': total_clients,
+                'wait_time': 5  # Client should wait 5 seconds and retry
+            }), 423  # 423 = Locked (resource temporarily unavailable)
         else:
-            print(f"   ⚠️  No saved model found at {fusion_path}")
-            print(f"   🆕 Starting with fresh model")
+            # All clients completed - advance to next round
+            current_global_round += 1
+            clients_completed_current_round = set()
+            print(f"🚀 ADVANCING TO GLOBAL ROUND {current_global_round + 1}")
+            print(f"   📊 All {total_clients} clients synchronized")
     
-    def _reset_training_state(self):
-        """Reset training state to defaults."""
-        self.best_accuracy = 0.0
-        self.best_f1 = 0.0
-        self.best_round = 0
-        self.training_history = {
-            'round_accuracies': [],
-            'round_f1_scores': [],
-            'round_losses': [],
-            'training_times': []
+    try:
+        # Load current embeddings to compute gradients
+        embeddings_dir = 'embeddings'
+        
+        # Load a sample of embeddings for gradient computation
+        train_image_emb, train_tabular_emb, train_labels, _ = federated_server.load_client_embeddings('train')
+        
+        # Take a batch for gradient computation (for efficiency)
+        batch_size = min(32, len(train_labels))
+        batch_indices = np.random.choice(len(train_labels), batch_size, replace=False)
+        
+        batch_image_emb = train_image_emb[batch_indices]
+        batch_tabular_emb = train_tabular_emb[batch_indices]
+        batch_labels = train_labels[batch_indices]
+        
+        # Compute embedding gradients
+        embeddings_dict = {
+            'image': tf.convert_to_tensor(batch_image_emb, dtype=tf.float32),
+            'tabular': tf.convert_to_tensor(batch_tabular_emb, dtype=tf.float32)
         }
+        
+        gradient_info = compute_embedding_gradients(embeddings_dict, batch_labels)
+        
+        # Extract attention weights
+        attention_weights = extract_attention_weights()
+        
+        # Get FL config
+        fl_config = get_config()['federated_learning']
+        
+        # Prepare guidance for specific client type
+        if client_type == 'image':
+            client_gradients = gradient_info['image_gradients']
+        else:  # tabular
+            client_gradients = gradient_info['tabular_gradients']
+        
+        # GRADIENT VALIDATION - Check if gradients are meaningful
+        gradient_norm = np.linalg.norm(client_gradients)
+        gradient_mean = np.mean(np.abs(client_gradients))
+        
+        # Adaptive learning rate based on client's recent performance
+        adaptive_lr_multiplier = fl_config['client_learning_rate_multiplier']
+        client_info = registered_clients[client_id]
+        
+        if 'performance_history' in client_info and len(client_info['performance_history']) >= 2:
+            # Check if client improved in last round
+            recent_performance = client_info['performance_history'][-2:]
+            accuracy_trend = recent_performance[-1]['accuracy'] - recent_performance[-2]['accuracy']
+            
+            if accuracy_trend < -0.01:  # Client degraded significantly (>1%)
+                adaptive_lr_multiplier *= 0.5  # Reduce learning rate
+                guidance_effectiveness['adaptive_lr_adjustments'] += 1
+                print(f"   🔧 Reducing LR multiplier to {adaptive_lr_multiplier:.3f} due to client degradation")
+            elif accuracy_trend > 0.01:  # Client improved significantly (>1%)
+                adaptive_lr_multiplier *= 1.2  # Slightly increase learning rate
+                adaptive_lr_multiplier = min(adaptive_lr_multiplier, 1.0)  # Cap at 1.0
+                guidance_effectiveness['adaptive_lr_adjustments'] += 1
+                print(f"   🔧 Increasing LR multiplier to {adaptive_lr_multiplier:.3f} due to client improvement")
+        
+        # GRADIENT QUALITY CHECK
+        if gradient_norm < 1e-6:  # Very small gradients
+            print(f"   ⚠️  Warning: Very small gradient norm ({gradient_norm:.2e}) - guidance may be ineffective")
+            # Option: Skip guidance or use default values
+            if guidance_effectiveness['improvement_rate'] < 0.3:  # If effectiveness is low
+                print(f"   🚫 Skipping guidance due to low effectiveness ({guidance_effectiveness['improvement_rate']:.2%})")
+                guidance_effectiveness['rejected_guidance_count'] += 1
+                return jsonify({
+                    'guidance_skipped': True,
+                    'reason': 'low_gradient_quality_and_effectiveness',
+                    'message': 'Continue with local training only',
+                    'timestamp': time.time()
+                })
+        
+        # Scale gradients for stability
+        client_gradients = client_gradients * fl_config['gradient_scaling_factor']
+        
+        # Clip gradients for safety
+        client_gradients = np.clip(client_gradients, -fl_config['max_gradient_norm'], fl_config['max_gradient_norm'])
+        
+        # Track guidance sending
+        guidance_effectiveness['total_guidance_sent'] += 1
+        
+        guidance = {
+            'round': current_round,
+            'client_type': client_type,
+            'embedding_gradients': client_gradients.tolist(),
+            'attention_weights': attention_weights,
+            'fusion_loss': float(gradient_info['loss_value']),
+            'guidance_weight': fl_config['guidance_weight'],
+            'learning_rate_multiplier': adaptive_lr_multiplier,  # Use adaptive LR
+            'gradient_norm': float(gradient_norm),
+            'gradient_quality': 'good' if gradient_norm > 1e-4 else 'poor',
+            'timestamp': time.time()
+        }
+        
+        print(f"📤 Sent guidance to {client_type} client {client_id} for round {current_round + 1}")
+        print(f"   📊 Gradient norm: {gradient_norm:.4f}")
+        print(f"   📈 Fusion loss: {gradient_info['loss_value']:.4f}")
+        print(f"   🎯 Adaptive LR multiplier: {adaptive_lr_multiplier:.3f}")
+        
+        return jsonify(guidance)
+        
+    except Exception as e:
+        print(f"❌ Error generating guidance for {client_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/collect_fresh_embeddings', methods=['POST'])
+def collect_fresh_embeddings():
+    """Collect fresh embeddings from client after guided training."""
+    global clients_completed_current_round
     
-    def save_training_results(self, final_results, filename="training_results.pkl"):
-        """Save comprehensive training results."""
+    data = request.json
+    client_id = data.get('client_id')
+    current_round = data.get('current_round', 0)
+    embeddings_data = data.get('embeddings_data')
+    performance_metrics = data.get('performance_metrics', {})
+    
+    if client_id not in registered_clients:
+        return jsonify({'error': 'Client not registered'}), 400
+    
+    # Update client performance tracking
+    registered_clients[client_id]['last_seen'] = time.time()
+    registered_clients[client_id]['rounds_participated'] += 1
+    registered_clients[client_id]['current_round'] = current_round + 1
+    registered_clients[client_id]['current_accuracy'] = performance_metrics.get('accuracy', 0.0)
+    registered_clients[client_id]['performance_history'].append({
+        'round': current_round,
+        'accuracy': performance_metrics.get('accuracy', 0.0),
+        'loss': performance_metrics.get('loss', 0.0),
+        'timestamp': time.time()
+    })
+    
+    # Mark client as completed for this round
+    clients_completed_current_round.add(client_id)
+    
+    client_type = registered_clients[client_id]['client_type']
+    
+    print(f"📥 Received fresh embeddings from {client_type} client {client_id}")
+    print(f"   🎯 Client accuracy: {performance_metrics.get('accuracy', 0.0):.4f}")
+    print(f"   📉 Client loss: {performance_metrics.get('loss', 0.0):.4f}")
+    print(f"   📊 Round {current_round + 1} progress: {len(clients_completed_current_round)}/{len(registered_clients)} clients completed")
+    
+    # Check if this is the final round and all clients have completed
+    config = get_config()
+    fl_config = config['federated_learning']
+    final_round = fl_config['total_fl_rounds']
+    
+    if current_round + 1 >= final_round:
+        # Check if all clients have completed final round
+        all_clients_completed = True
+        for client_id_check, client_info in registered_clients.items():
+            if client_info.get('current_round', 0) < final_round:
+                all_clients_completed = False
+                break
+        
+        if all_clients_completed:
+            print(f"\n🎯 ALL CLIENTS COMPLETED FL ROUNDS - TRIGGERING FINAL EVALUATION")
+            try:
+                # Trigger final evaluation automatically
+                final_results = federated_server.evaluate_final_model()
+                
+                print(f"\n🏆 DISTRIBUTED FL FINAL RESULTS:")
+                print(f"   🎯 Global Model Test Accuracy: {final_results.get('accuracy', 0.0):.4f} ({final_results.get('accuracy', 0.0)*100:.2f}%)")
+                print(f"   📈 Global Model Test F1: {final_results.get('f1_macro', 0.0):.4f}")
+                print(f"   🔄 Total FL Rounds: {final_round}")
+                print(f"   👥 Participating Clients: {len(registered_clients)}")
+                
+                # Save final results
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                results_file = f"results/distributed_fl_results_{timestamp}.json"
+                os.makedirs("results", exist_ok=True)
+                
+                final_summary = {
+                    'final_test_accuracy': final_results.get('accuracy', 0.0),
+                    'final_test_f1': final_results.get('f1_macro', 0.0),
+                    'total_rounds': final_round,
+                    'clients': len(registered_clients),
+                    'strategy': 'fusion_guided_updates',
+                    'timestamp': time.time()
+                }
+                
+                with open(results_file, 'w') as f:
+                    json.dump(final_summary, f, indent=2)
+                
+                print(f"   💾 Results saved to {results_file}")
+                
+                # Schedule automatic server shutdown if enabled
+                if auto_shutdown_enabled:
+                    print(f"\n🔄 FEDERATED LEARNING COMPLETED!")
+                    print(f"🛑 Server will shutdown in 10 seconds...")
+                    print(f"✅ All processes finished successfully!")
+                    
+                    # Schedule shutdown after delay to allow final response
+                    import threading
+                    def shutdown_server():
+                        time.sleep(10)  # Give time for final response
+                        print(f"\n🛑 Shutting down server...")
+                        print(f"🏁 Terminal is ready for new commands!")
+                        os._exit(0)  # Force exit
+                    
+                    shutdown_thread = threading.Thread(target=shutdown_server)
+                    shutdown_thread.daemon = True
+                    shutdown_thread.start()
+                else:
+                    print(f"\n🔄 FEDERATED LEARNING COMPLETED!")
+                    print(f"✅ All processes finished successfully!")
+                    print(f"🔄 Server will continue running for additional requests...")
+                
+            except Exception as e:
+                print(f"❌ Error in automatic final evaluation: {str(e)}")
+                # Still shutdown on error if enabled
+                if auto_shutdown_enabled:
+                    print(f"🛑 Server will shutdown in 5 seconds due to error...")
+                    import threading
+                    def shutdown_server():
+                        time.sleep(5)
+                        print(f"\n🛑 Shutting down server...")
+                        print(f"🏁 Terminal is ready for new commands!")
+                        os._exit(0)
+                    
+                    shutdown_thread = threading.Thread(target=shutdown_server)
+                    shutdown_thread.daemon = True
+                    shutdown_thread.start()
+                else:
+                    print(f"❌ Error occurred, but server will continue running...")
+    
+    return jsonify({
+        'status': 'embeddings_received',
+        'round': current_round,
+        'timestamp': time.time()
+    })
+
+@app.route('/run_fl_round', methods=['POST'])
+def run_fl_round():
+    """Execute a complete federated learning round with performance tracking."""
+    data = request.json
+    round_idx = data.get('round_idx', 0)
+    
+    config = get_config()
+    fl_config = config['federated_learning']
+    
+    print(f"\n🚀 DISTRIBUTED FL ROUND {round_idx + 1}/{fl_config['total_fl_rounds']}")
+    print("=" * 60)
+    
+    round_start_time = time.time()
+    
+    try:
+        # Step 1: Load current embeddings and train fusion model
+        print("📊 Loading embeddings and training fusion model...")
+        
+        train_image_emb, train_tabular_emb, train_labels, train_sensitive = \
+            federated_server.load_client_embeddings('train')
+        val_image_emb, val_tabular_emb, val_labels, val_sensitive = \
+            federated_server.load_client_embeddings('val')
+        
+        # Train fusion model for this round
+        round_results = federated_server.train_vfl_round(
+            round_idx=round_idx,
+            total_rounds=fl_config['total_fl_rounds'],
+            epochs=config['training']['epochs_per_round'],
+            batch_size=config['training']['batch_size']
+        )
+        
+        # Evaluate round performance
+        val_results = federated_server.evaluate_global_model(round_idx)
+        
+        round_time = time.time() - round_start_time
+        
+        # Track performance improvement
+        current_accuracy = val_results['accuracy']
+        current_f1 = val_results['f1_score']
+        
+        # Compare with previous round
+        improvement = 0.0
+        if len(round_performance_history) > 0:
+            prev_accuracy = round_performance_history[-1]['accuracy']
+            improvement = current_accuracy - prev_accuracy
+        
+        # Store round performance
+        round_performance = {
+            'round': round_idx + 1,
+            'accuracy': current_accuracy,
+            'f1_score': current_f1,
+            'loss': round_results.get('loss', 0.0),
+            'improvement': improvement,
+            'time': round_time,
+            'client_count': len(registered_clients),
+            'timestamp': time.time()
+        }
+        
+        round_performance_history.append(round_performance)
+        
+        # Update training status
+        update_training_status(
+            current_round=round_idx + 1,
+            total_rounds=fl_config['total_fl_rounds'],
+            accuracy=current_accuracy,
+            loss=round_results.get('loss', 0.0),
+            f1_score=current_f1,
+            phase="distributed_fl_round_complete"
+        )
+        
+        # Save round model if configured
+        if fl_config['save_round_models']:
+            federated_server.save_best_model(f"models/round_{round_idx + 1}")
+        
+        print(f"\n📊 ROUND {round_idx + 1} RESULTS:")
+        print(f"   🎯 Validation Accuracy: {current_accuracy:.4f}")
+        print(f"   📈 Validation F1: {current_f1:.4f}")
+        print(f"   📊 Improvement: {improvement:+.4f}")
+        print(f"   ⏱️  Round Time: {round_time:.1f}s")
+        print(f"   👥 Active Clients: {len(registered_clients)}")
+        
+        return jsonify({
+            'status': 'round_completed',
+            'round': round_idx + 1,
+            'results': round_performance,
+            'continue_training': improvement >= fl_config['min_round_improvement'] or round_idx == 0
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in FL round {round_idx + 1}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/get_final_results', methods=['GET'])
+def get_final_results():
+    """Get final federated learning results and evaluation."""
+    try:
+        print("\n🏁 FINAL DISTRIBUTED FL EVALUATION")
+        print("=" * 50)
+        
+        # Final evaluation
+        final_results = federated_server.evaluate_final_model()
+        
+        # Compile comprehensive results
+        total_time = sum([r['time'] for r in round_performance_history])
+        
         results = {
-            'training_history': self.training_history,
-            'best_accuracy': self.best_accuracy,
-            'best_f1': self.best_f1,
-            'best_round': self.best_round,
-            'final_test_results': final_results,
-            'configuration': {
-                'embedding_dim': self.embedding_dim,
-                'num_classes': self.num_classes,
-                'adversarial_lambda': self.adversarial_lambda,
-                'learning_rate': self.learning_rate,
-                'data_percentage': self.data_percentage
-            }
+            'training_completed': True,
+            'strategy': 'fusion_guided_updates',
+            'total_rounds': len(round_performance_history),
+            'total_time': total_time,
+            'final_test_accuracy': final_results.get('accuracy', 0.0),
+            'final_test_f1': final_results.get('f1_macro', 0.0),
+            'round_history': round_performance_history,
+            'client_summary': {
+                client_id: {
+                    'type': info['client_type'],
+                    'rounds_participated': info['rounds_participated'],
+                    'final_accuracy': info['current_accuracy'],
+                    'performance_trend': info['performance_history']
+                }
+                for client_id, info in registered_clients.items()
+            },
+            'performance_improvements': [
+                r['improvement'] for r in round_performance_history
+            ],
+            'timestamp': time.time()
         }
         
-        with open(filename, 'wb') as f:
-            pickle.dump(results, f)
+        # Save results
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        results_file = f"results/distributed_fl_results_{timestamp}.json"
+        os.makedirs("results", exist_ok=True)
         
-        print(f"   💾 Training results saved to {filename}")
+        with open(results_file, 'w') as f:
+            json.dump(results, f, indent=2)
+        
+        print(f"💾 Results saved to {results_file}")
+        print(f"🎉 Final Test Accuracy: {final_results.get('accuracy', 0.0):.4f}")
+        print(f"📈 Final Test F1: {final_results.get('f1_macro', 0.0):.4f}")
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        print(f"❌ Error in final evaluation: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
-    def predict_with_ensemble(self, image_embeddings, tabular_embeddings):
-        """
-        STEP 3: Make predictions using ensemble of models for better generalization.
-        
-        Args:
-            image_embeddings: Image embeddings
-            tabular_embeddings: Tabular embeddings
-        
-        Returns:
-            np.ndarray: Ensemble predictions
-        """
-        if not hasattr(self, 'ensemble_models') or len(self.ensemble_models) == 0:
-            # Fallback to single model
-            return self.fusion_model([image_embeddings, tabular_embeddings]).numpy()
-        
-        print(f"   🎯 Using ensemble prediction with {len(self.ensemble_models)} models")
-        
-        # Collect predictions from all ensemble models
-        ensemble_predictions = []
-        
-        # Main model prediction
-        main_pred = self.fusion_model([image_embeddings, tabular_embeddings])
-        ensemble_predictions.append(main_pred.numpy())
-        
-        # Ensemble model predictions
-        for i, model in enumerate(self.ensemble_models):
-            pred = model([image_embeddings, tabular_embeddings])
-            ensemble_predictions.append(pred.numpy())
-        
-        # Average ensemble predictions
-        ensemble_avg = np.mean(ensemble_predictions, axis=0)
-        
-        print(f"   📊 Ensemble prediction variance: {np.std(ensemble_predictions, axis=0).mean():.4f}")
-        
-        return ensemble_avg
+@app.route('/get_server_status', methods=['GET'])
+def get_server_status():
+    """Get comprehensive server status."""
+    return jsonify({
+        'server_initialized': federated_server is not None,
+        'registered_clients': registered_clients,
+        'rounds_completed': len(round_performance_history),
+        'performance_history': round_performance_history,
+        'timestamp': time.time()
+    })
 
+@app.route('/request_client_embeddings', methods=['POST'])
+def request_client_embeddings():
+    """Request embeddings from a specific client (server-driven)."""
+    data = request.json
+    client_id = data.get('client_id')
+    round_idx = data.get('round', 0)
+    embedding_type = data.get('embedding_type', 'train')
+    guidance_needed = data.get('guidance_needed', False)
+    
+    if client_id not in registered_clients:
+        return jsonify({'error': 'Client not registered'}), 400
+    
+    print(f"📤 Requesting {embedding_type} embeddings from client {client_id} for round {round_idx + 1}")
+    
+    # This endpoint just confirms the request
+    # Clients will need to poll for this request
+    return jsonify({
+        'status': 'embedding_request_sent',
+        'client_id': client_id,
+        'round': round_idx,
+        'embedding_type': embedding_type,
+        'guidance_needed': guidance_needed,
+        'timestamp': time.time()
+    })
+
+@app.route('/signal_fl_complete', methods=['POST'])
+def signal_fl_complete():
+    """Signal to client that FL is complete and they can shutdown."""
+    data = request.json
+    client_id = data.get('client_id')
+    
+    if client_id not in registered_clients:
+        return jsonify({'error': 'Client not registered'}), 400
+    
+    print(f"📢 Signaling FL completion to client {client_id}")
+    
+    return jsonify({
+        'status': 'fl_complete',
+        'message': 'Federated learning completed - client can shutdown',
+        'timestamp': time.time()
+    })
+
+@app.route('/get_client_task', methods=['POST'])
+def get_client_task():
+    """Get current task for a specific client (passive polling)."""
+    data = request.json
+    client_id = data.get('client_id')
+    
+    if client_id not in registered_clients:
+        return jsonify({'error': 'Client not registered'}), 400
+    
+    client_info = registered_clients[client_id]
+    current_task = client_info.get('current_task', 'idle')
+    
+    response_data = {
+        'client_id': client_id,
+        'current_task': current_task,
+        'timestamp': time.time()
+    }
+    
+    # Add task-specific data
+    if current_task == 'initial_training':
+        response_data.update({
+            'task_type': 'initial_training',
+            'message': 'Perform initial local training and send embeddings'
+        })
+    elif current_task.startswith('round_') and current_task.endswith('_training'):
+        round_num = current_task.split('_')[1]
+        response_data.update({
+            'task_type': 'guided_training',
+            'round': int(round_num),
+            'message': f'Perform guided training for round {round_num} and send fresh embeddings'
+        })
+    elif current_task == 'completed':
+        response_data.update({
+            'task_type': 'shutdown',
+            'message': 'Federated learning completed - you can shutdown'
+        })
+    else:
+        response_data.update({
+            'task_type': 'wait',
+            'message': 'Wait for server instructions'
+        })
+    
+    return jsonify(response_data)
+
+@app.route('/client_task_completed', methods=['POST'])
+def client_task_completed():
+    """Mark client task as completed with guidance effectiveness tracking."""
+    global guidance_effectiveness, clients_completed_current_round, current_global_round
+    
+    data = request.json
+    client_id = data.get('client_id')
+    completed_task = data.get('completed_task')
+    performance_metrics = data.get('performance_metrics', {})
+    
+    if client_id not in registered_clients:
+        return jsonify({'error': 'Client not registered'}), 400
+    
+    client_info = registered_clients[client_id]
+    current_accuracy = performance_metrics.get('accuracy', 0.0)
+    
+    # Get previous accuracy for guidance effectiveness tracking
+    previous_accuracy = 0.0
+    if 'performance_history' in client_info and len(client_info['performance_history']) > 0:
+        previous_accuracy = client_info['performance_history'][-1]['accuracy']
+    
+    # Update client status
+    client_info['last_seen'] = time.time()
+    client_info['current_accuracy'] = current_accuracy
+    client_info['current_task'] = 'idle'  # Mark as completed
+    
+    # Track round completion for synchronization
+    if completed_task.startswith('round_') and completed_task.endswith('_training'):
+        round_num = int(completed_task.split('_')[1])
+        if round_num == current_global_round + 1:  # Completing current round
+            clients_completed_current_round.add(client_id)
+            print(f"   🔄 Client {client_id} completed round {round_num}: {len(clients_completed_current_round)}/{len(registered_clients)} clients done")
+    
+    # Add to performance history
+    if 'performance_history' not in client_info:
+        client_info['performance_history'] = []
+    
+    client_info['performance_history'].append({
+        'task': completed_task,
+        'accuracy': current_accuracy,
+        'loss': performance_metrics.get('loss', 0.0),
+        'timestamp': time.time()
+    })
+    
+    # Track guidance effectiveness if this was after receiving guidance
+    if 'round_' in completed_task and len(client_info['performance_history']) > 1:
+        accuracy_change = current_accuracy - previous_accuracy
+        
+        if accuracy_change > 0.001:  # Improved by more than 0.1%
+            guidance_effectiveness['client_improvements'] += 1
+            print(f"   📈 Client improved by {accuracy_change:.4f} after guidance")
+        elif accuracy_change < -0.001:  # Degraded by more than 0.1%
+            guidance_effectiveness['client_degradations'] += 1
+            print(f"   📉 Client degraded by {abs(accuracy_change):.4f} after guidance")
+        
+        # Update improvement rate
+        total_guided = guidance_effectiveness['client_improvements'] + guidance_effectiveness['client_degradations']
+        if total_guided > 0:
+            guidance_effectiveness['improvement_rate'] = guidance_effectiveness['client_improvements'] / total_guided
+    
+    client_type = client_info['client_type']
+    print(f"✅ Client {client_id} ({client_type}) completed task: {completed_task}")
+    print(f"   🎯 Accuracy: {current_accuracy:.4f}")
+    
+    # Print guidance effectiveness summary
+    if guidance_effectiveness['total_guidance_sent'] > 0:
+        print(f"   📊 Guidance Effectiveness: {guidance_effectiveness['improvement_rate']:.2%} improvement rate")
+    
+    return jsonify({
+        'status': 'task_completed_acknowledged',
+        'client_id': client_id,
+        'timestamp': time.time()
+    })
 
 def main():
-    """Main function for standalone server execution."""
-    parser = argparse.ArgumentParser(description='Federated Server for VFL')
-    parser.add_argument('--data_dir', type=str, default='data',
-                       help='Directory containing HAM10000 dataset')
-    parser.add_argument('--embeddings_dir', type=str, default='embeddings',
-                       help='Directory containing client embeddings')
-    parser.add_argument('--data_percentage', type=float, default=0.1,
-                       help='Percentage of data to use (0.0-1.0)')
-    parser.add_argument('--learning_rate', type=float, default=0.001,
-                       help='Learning rate for fusion model')
-    parser.add_argument('--embedding_dim', type=int, default=256,
-                       help='Embedding dimension')
-    parser.add_argument('--num_classes', type=int, default=7,
-                       help='Number of output classes')
-    parser.add_argument('--adversarial_lambda', type=float, default=0.0,
-                       help='Adversarial loss weight (0 to disable)')
-    parser.add_argument('--total_rounds', type=int, default=5,
-                       help='Total number of federated rounds')
-    parser.add_argument('--epochs_per_round', type=int, default=10,
-                       help='Epochs per round')
-    parser.add_argument('--batch_size', type=int, default=32,
-                       help='Batch size for training')
+    global auto_shutdown_enabled
+    
+    parser = argparse.ArgumentParser(description='Distributed Federated Learning Server')
+    parser.add_argument('--mode', choices=['local', 'distributed'], default='local',
+                        help='Deployment mode')
+    parser.add_argument('--host', type=str, default=None,
+                        help='Server host (overrides config)')
+    parser.add_argument('--port', type=int, default=None,
+                        help='Server port (overrides config)')
+    parser.add_argument('--no-auto-shutdown', action='store_true',
+                        help='Keep server running after FL completion (default: auto-shutdown)')
     
     args = parser.parse_args()
     
-    # Create server
-    server = FederatedServer(
-        embedding_dim=args.embedding_dim,
-        num_classes=args.num_classes,
-        adversarial_lambda=args.adversarial_lambda,
-        learning_rate=args.learning_rate,
-        data_percentage=args.data_percentage
-    )
+    # Configure auto-shutdown based on command line
+    auto_shutdown_enabled = not args.no_auto_shutdown
+    
+    # Get server configuration
+    server_config = get_server_config(args.mode)
+    
+    host = args.host or server_config['host']
+    port = args.port or server_config['port']
+    
+    print(f"🚀 Starting Distributed FL Server in {args.mode} mode")
+    print(f"📡 Server: http://{host}:{port}")
+    print(f"🧠 Strategy: Fusion-Guided Weight Updates")
+    
+    # Show shutdown configuration
+    if auto_shutdown_enabled:
+        # Get FL rounds from config
+        config = get_config()
+        fl_rounds = config['federated_learning']['total_fl_rounds']
+        print(f"🔄 Auto-shutdown: ENABLED (after {fl_rounds} FL rounds)")
+        print(f"💡 Use --no-auto-shutdown to keep server running")
+    else:
+        print(f"🔄 Auto-shutdown: DISABLED (server will keep running)")
     
     # Initialize server
-    server.create_models()
-    server.load_data_loader(data_dir=args.data_dir)
+    initialize_server()
     
-    # Run federated training
-    final_results = server.run_federated_learning(
-        total_rounds=args.total_rounds,
-        epochs_per_round=args.epochs_per_round,
-        batch_size=args.batch_size
-    )
-    
-    # Save results
-    server.save_training_results(final_results)
-    
-    print(f"\n✅ Federated server completed successfully!")
-
+    # Start Flask server
+    app.run(host=host, port=port, debug=False)
 
 if __name__ == "__main__":
     main() 

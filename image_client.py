@@ -1,44 +1,38 @@
+#!/usr/bin/env python3
 """
-Standalone Image Client for Vertical Federated Learning.
-Processes dermatoscopic images and communicates embeddings to the federated server.
+Distributed Image Client with Fusion-Guided Weight Updates
+Implements true federated learning with iterative retraining per round.
 """
 
 import os
 import sys
+import time
+import json
+import requests
+import argparse
 import numpy as np
 import tensorflow as tf
-from data_loader import HAM10000DataLoader, load_and_preprocess_image
-from models import create_image_encoder
-from train_evaluate import (
-    create_image_data_generator, 
-    train_client_model,
-    evaluate_client_model,
-    compute_class_weights,
-    extract_embeddings
-)
+from datetime import datetime
+
+# Import core components 
+from network_config import get_client_config
+from config import get_config
 from status import update_client_status
-import pickle
-import argparse
-import time
-from tensorflow.keras.layers import Dense, BatchNormalization, Dropout
-from tensorflow.keras.models import Model
+from data_loader import HAM10000DataLoader
+from models import create_image_encoder
+from train_evaluate import (train_client_model, evaluate_client_model, extract_embeddings, 
+                           compute_class_weights, create_image_data_generator)
 
-# Conditional Flask import for server mode
-try:
-    from flask import Flask, request, jsonify
-    FLASK_AVAILABLE = True
-except ImportError:
-    FLASK_AVAILABLE = False
-
-
-class ImageClient:
+class DistributedImageClient:
     """
-    Image client for vertical federated learning.
-    Handles dermatoscopic image processing and embedding generation.
+    Distributed Image Client with Fusion-Guided Updates.
+    Extends ImageClient to support true federated learning.
     """
     
-    def __init__(self, client_id="image_client", data_percentage=0.1, 
-                 learning_rate=0.001, embedding_dim=256):
+    def __init__(self, server_host='localhost', server_port=8080, 
+                 client_id="image_client", data_percentage=0.1,
+                 learning_rate=0.001, embedding_dim=256, **kwargs):
+        # Base ImageClient functionality
         self.client_id = client_id
         self.data_percentage = data_percentage
         self.learning_rate = learning_rate
@@ -56,11 +50,20 @@ class ImageClient:
         self.current_f1 = 0.0
         self.current_loss = 0.0
         
-        print(f"🖼️  Image Client Initialized")
-        print(f"   Client ID: {self.client_id}")
-        print(f"   Data percentage: {self.data_percentage*100:.1f}%")
-        print(f"   Learning rate: {self.learning_rate}")
-        print(f"   Embedding dimension: {self.embedding_dim}")
+        # Distributed functionality
+        self.server_host = server_host
+        self.server_port = server_port
+        self.server_url = f"http://{server_host}:{server_port}"
+        self.is_registered = False
+        self.current_round = 0
+        self.fl_config = {}
+        
+        print(f"🖼️ Distributed Image Client Initialized")
+        print(f"📡 Server: {self.server_url}")
+        print(f"🆔 Client ID: {self.client_id}")
+        print(f"📊 Data percentage: {self.data_percentage*100:.1f}%")
+        print(f"📈 Learning rate: {self.learning_rate}")
+        print(f"🔢 Embedding dimension: {self.embedding_dim}")
     
     def load_data(self, data_dir="data"):
         """Load and preprocess HAM10000 dataset for image client."""
@@ -93,11 +96,11 @@ class ImageClient:
             'indices': image_data['test']['indices']
         }
         
-        print(f"   ✅ Data loaded successfully")
+        print(f"✅ Data loaded successfully")
         print(f"   - Train samples: {len(self.train_data['image_paths'])}")
         print(f"   - Validation samples: {len(self.val_data['image_paths'])}")
         print(f"   - Test samples: {len(self.test_data['image_paths'])}")
-    
+
     def create_model(self, use_step3_enhancements=True, use_lightweight=True):
         """
         Create the image encoder model.
@@ -106,7 +109,7 @@ class ImageClient:
             use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
             use_lightweight (bool): Whether to use lightweight EfficientNetB0 vs heavy EfficientNetV2S
         """
-        print("🏗️  Creating image encoder model...")
+        print("🏗️ Creating image encoder model...")
         
         # Create enhanced image encoder
         self.encoder = create_image_encoder(
@@ -116,91 +119,21 @@ class ImageClient:
             use_lightweight=use_lightweight
         )
         
-        print(f"   ✅ Model created with {self.encoder.count_params():,} parameters")
-    
-    def train(self, epochs=10, batch_size=32, patience=3):
-        """Train the image encoder model."""
-        print(f"\n🎯 Training {self.client_id}...")
-        print(f"   📊 Dataset: {len(self.train_data['labels'])} train, {len(self.val_data['labels'])} val samples")
-        print(f"   ⚙️  Config: {epochs} epochs, batch size {batch_size}")
+        print(f"✅ Model created with {self.encoder.count_params():,} parameters")
+
+    def _load_images(self, image_paths, batch_size=32):
+        """Load and preprocess images from paths."""
+        from data_loader import load_and_preprocess_image
+        import numpy as np
         
-        # Prepare training data
-        print(f"   📸 Loading training images...")
-        train_images = self._load_images(self.train_data['image_paths'])
-        train_labels = self.train_data['labels']
+        images = []
+        for img_path in image_paths:
+            img = load_and_preprocess_image(img_path, target_size=(224, 224), 
+                                          use_efficientnet_preprocessing=True)
+            images.append(img)
         
-        print(f"   📸 Loading validation images...")
-        val_images = self._load_images(self.val_data['image_paths'])
-        val_labels = self.val_data['labels']
-        
-        # Compute class weights for balanced dataset
-        class_weights = compute_class_weights(train_labels, method='balanced')
-        print(f"   ⚖️  Class weights computed for {len(set(train_labels))} classes")
-        
-        # Create data generators
-        train_generator = create_image_data_generator(
-            self.train_data['image_paths'], 
-            train_labels,
-            batch_size=batch_size,
-            augment=True,
-            shuffle=True
-        )
-        
-        steps_per_epoch = len(train_labels) // batch_size
-        print(f"   🔄 Training setup: {steps_per_epoch} steps per epoch")
-        
-        # Train model with progress tracking
-        print(f"   🚀 Starting training...")
-        history = train_client_model(
-            model=self.encoder,
-            train_generator=train_generator,
-            val_data=(val_images, val_labels),
-            epochs=epochs,
-            steps_per_epoch=steps_per_epoch,
-            class_weights=class_weights,
-            patience=patience,
-            verbose=2  # More verbose output
-        )
-        
-        # Update metrics
-        if hasattr(history, 'history') and 'val_accuracy' in history.history:
-            self.current_accuracy = max(history.history['val_accuracy'])
-            self.current_loss = min(history.history['val_loss'])
-            print(f"   📈 Best validation accuracy: {self.current_accuracy:.4f}")
-            print(f"   📉 Best validation loss: {self.current_loss:.4f}")
-        
-        print(f"   ✅ Training completed successfully")
-        return history
-    
-    def evaluate(self):
-        """Evaluate the model on test data."""
-        print(f"\n📊 Evaluating {self.client_id}...")
-        
-        test_images = self._load_images(self.test_data['image_paths'])
-        test_labels = self.test_data['labels']
-        
-        # Evaluate model
-        results = evaluate_client_model(
-            model=self.encoder,
-            test_data=(test_images, test_labels),
-            class_names=self.data_loader.get_class_names(),
-            verbose=1
-        )
-        
-        # Update metrics
-        self.current_accuracy = results['accuracy']
-        self.current_f1 = results['f1_macro']
-        
-        # Update status
-        update_client_status(
-            client_id=self.client_id,
-            accuracy=self.current_accuracy,
-            f1_score=self.current_f1,
-            loss=self.current_loss
-        )
-        
-        return results
-    
+        return np.array(images)
+
     def generate_embeddings(self, data_split='train'):
         """
         Generate embeddings for a specific data split.
@@ -211,7 +144,7 @@ class ImageClient:
         Returns:
             tuple: (embeddings, labels, indices)
         """
-        print(f"\n🔄 Generating {data_split} embeddings...")
+        print(f"🧠 Generating {data_split} embeddings...")
         
         if data_split == 'train':
             data = self.train_data
@@ -228,151 +161,234 @@ class ImageClient:
         # Generate embeddings
         embeddings = extract_embeddings(self.encoder, images, batch_size=32)
         
-        print(f"   ✅ Generated embeddings: {embeddings.shape}")
+        print(f"✅ Generated embeddings: {embeddings.shape}")
+        return embeddings, np.array(data['labels']), np.array(data['indices'])
+
+    def save_embeddings(self, embeddings, labels, indices, data_split='train', output_dir='embeddings'):
+        """Save embeddings to disk."""
+        import pickle
+        import os
         
-        return embeddings, data['labels'], data['indices']
-    
-    def _load_images(self, image_paths, batch_size=32):
-        """Load and preprocess images from paths with EfficientNet preprocessing."""
-        images = []
-        for path in image_paths:
-            img = load_and_preprocess_image(
-                path, 
-                target_size=(224, 224), 
-                augment=False,
-                use_efficientnet_preprocessing=True  # PHASE 2: Enable EfficientNet preprocessing
-            )
-            images.append(img)
-        return np.array(images)
-    
-    def save_embeddings(self, embeddings, labels, indices, data_split='train', 
-                       output_dir='embeddings'):
-        """Save embeddings to file for server communication."""
         os.makedirs(output_dir, exist_ok=True)
         
-        data = {
+        embedding_data = {
             'embeddings': embeddings,
             'labels': labels,
             'indices': indices,
             'client_id': self.client_id,
             'data_split': data_split,
-            'embedding_dim': self.embedding_dim
+            'embedding_dim': self.embedding_dim,
+            'timestamp': time.time()
         }
         
-        filename = f"{output_dir}/{self.client_id}_{data_split}_embeddings.pkl"
-        with open(filename, 'wb') as f:
-            pickle.dump(data, f)
+        filename = f"{self.client_id}_{data_split}_embeddings.pkl"
+        filepath = os.path.join(output_dir, filename)
         
-        print(f"   💾 Embeddings saved to {filename}")
+        with open(filepath, 'wb') as f:
+            pickle.dump(embedding_data, f)
         
-        # Update status
-        update_client_status(
-            client_id=self.client_id,
-            embeddings_sent=True,
-            accuracy=self.current_accuracy,
-            f1_score=self.current_f1
-        )
-    
-    def load_embeddings(self, data_split='train', input_dir='embeddings'):
-        """Load embeddings from file."""
-        filename = f"{input_dir}/{self.client_id}_{data_split}_embeddings.pkl"
-        
-        if not os.path.exists(filename):
-            raise FileNotFoundError(f"Embeddings file not found: {filename}")
-        
-        with open(filename, 'rb') as f:
-            data = pickle.load(f)
-        
-        print(f"   📁 Embeddings loaded from {filename}")
-        return data['embeddings'], data['labels'], data['indices']
-    
-    def save_model(self, filepath=None):
-        """Save the trained model."""
-        if filepath is None:
-            os.makedirs('models', exist_ok=True)
-            filepath = f"models/{self.client_id}_model.h5"
-        
-        self.encoder.save_weights(filepath)
-        print(f"   💾 Model saved to {filepath}")
-    
-    def load_model_weights(self, filepath=None):
-        """Load model weights."""
-        if filepath is None:
-            filepath = f"models/{self.client_id}_model.h5"
-        
-        if os.path.exists(filepath):
-            self.encoder.load_weights(filepath)
-            print(f"   📁 Model weights loaded from {filepath}")
-            
-            # Update status
-            update_client_status(
-                client_id=self.client_id,
-                weights_updated=True,
-                accuracy=self.current_accuracy,
-                f1_score=self.current_f1
-            )
-        else:
-            print(f"   ⚠️  Model weights file not found: {filepath}")
-    
-    def get_performance_metrics(self):
-        """Get current performance metrics."""
-        return {
-            'client_id': self.client_id,
-            'accuracy': self.current_accuracy,
-            'f1_score': self.current_f1,
-            'loss': self.current_loss
-        }
-    
-    def load_global_model(self, round_idx):
-        """Load global model weights from server for FL round."""
-        fl_comm_dir = "communication"
-        global_model_file = f"{fl_comm_dir}/global_model_round_{round_idx}.pkl"
-        
-        if os.path.exists(global_model_file):
-            with open(global_model_file, 'rb') as f:
-                global_data = pickle.load(f)
-            
-            # Apply aggregated embedding knowledge if available
-            if 'aggregated_embedding_knowledge' in global_data:
-                aggregated_bias = global_data['aggregated_embedding_knowledge']
-                
-                # Update only the bias of the final embedding layer
-                current_weights = self.encoder.get_weights()
-                current_weights[-1] = aggregated_bias  # Replace only bias (last layer)
-                self.encoder.set_weights(current_weights)
-                
-                print(f"   📁 Global embedding knowledge applied for round {round_idx + 1}")
-                print(f"   🔄 Updated embedding bias: {aggregated_bias.shape}")
-            else:
-                print(f"   📁 Global model loaded for round {round_idx + 1} (no embedding knowledge to apply)")
-                
-            return global_data
-            
-        print(f"   ⚠️  Global model file not found: {global_model_file}")
-        return None
-    
-    # REMOVED: save_model_update method - not needed in true VFL architecture
-    # VFL clients only provide embeddings, not weight updates
+        print(f"💾 Saved {data_split} embeddings to {filepath}")
 
     def train_local_model(self, epochs=10, batch_size=16, verbose=1):
+        """Train the local model."""
+        if not hasattr(self, 'train_data') or self.train_data is None:
+            raise ValueError("No training data available. Load data first.")
+        
+        print(f"🚀 Training local model...")
+        print(f"   📊 Training samples: {len(self.train_data['labels'])}")
+        print(f"   🔄 Epochs: {epochs}")
+        
+        # Prepare training data
+        train_labels = np.array(self.train_data['labels'])
+        val_labels = np.array(self.val_data['labels']) if hasattr(self, 'val_data') else None
+        
+        # Load images
+        train_images = self._load_images(self.train_data['image_paths'])
+        val_images = None
+        if hasattr(self, 'val_data') and self.val_data is not None:
+            val_images = self._load_images(self.val_data['image_paths'])
+        
+        # Create training model with classification head
+        encoder_input = self.encoder.input
+        encoder_output = self.encoder.output
+        
+        # Add classification head for training
+        from tensorflow.keras.layers import Dense, BatchNormalization, Dropout
+        from tensorflow.keras.models import Model
+        
+        classifier_head = Dense(128, activation='relu', kernel_initializer='he_normal')(encoder_output)
+        classifier_head = BatchNormalization()(classifier_head)
+        classifier_head = Dropout(0.5)(classifier_head)
+        classifier_predictions = Dense(7, activation='softmax', name='predictions')(classifier_head)
+        
+        # Create training model
+        training_model = Model(inputs=encoder_input, outputs=classifier_predictions, name='local_training_model')
+        
+        # Compile model
+        training_model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
+            loss='sparse_categorical_crossentropy',
+            metrics=['accuracy']
+        )
+        
+        # Prepare validation data
+        validation_data = None
+        if val_images is not None and val_labels is not None:
+            validation_data = (val_images, val_labels)
+        
+        # Train model
+        history = training_model.fit(
+            train_images, train_labels,
+            batch_size=batch_size,
+            epochs=epochs,
+            validation_data=validation_data,
+            verbose=verbose,
+            callbacks=[
+                tf.keras.callbacks.EarlyStopping(
+                    monitor='val_accuracy' if validation_data else 'accuracy',
+                    patience=3,
+                    restore_best_weights=True
+                )
+            ]
+        )
+        
+        # Update encoder weights from trained model
+        encoder_layers = len(self.encoder.layers)
+        for i in range(encoder_layers):
+            self.encoder.layers[i].set_weights(training_model.layers[i].get_weights())
+        
+        # Extract metrics
+        final_accuracy = 0.0
+        final_loss = 0.0
+        
+        if hasattr(history, 'history'):
+            if 'val_accuracy' in history.history:
+                final_accuracy = max(history.history['val_accuracy'])
+                final_loss = min(history.history['val_loss'])
+            elif 'accuracy' in history.history:
+                final_accuracy = max(history.history['accuracy'])
+                final_loss = min(history.history['loss'])
+        
+        return {
+            'accuracy': final_accuracy,
+            'loss': final_loss,
+            'history': history.history if hasattr(history, 'history') else {}
+        }
+
+    def register_with_server(self):
+        """Register this client with the federated server."""
+        try:
+            response = requests.post(f"{self.server_url}/register_client", json={
+                'client_id': self.client_id,
+                'client_type': 'image'
+            })
+            
+            if response.status_code == 200:
+                result = response.json()
+                self.is_registered = True
+                print(f"✅ Registered with server")
+                print(f"   Total clients: {result['total_clients']}")
+                return True
+            else:
+                print(f"❌ Registration failed: {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Registration error: {str(e)}")
+            return False
+    
+    def get_fl_config(self):
+        """Get federated learning configuration from server."""
+        try:
+            response = requests.get(f"{self.server_url}/get_fl_config")
+            
+            if response.status_code == 200:
+                self.fl_config = response.json()
+                print(f"📥 Received FL config:")
+                print(f"   Rounds: {self.fl_config['total_fl_rounds']}")
+                print(f"   Epochs per round: {self.fl_config['client_epochs_per_round']}")
+                print(f"   Learning rate multiplier: {self.fl_config['client_learning_rate_multiplier']}")
+                return True
+            else:
+                print(f"❌ Failed to get FL config: {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ FL config error: {str(e)}")
+            return False
+    
+    def receive_global_guidance(self, current_round):
         """
-        Train the local image model on client data.
+        Receive fusion-guided updates from server.
+        INCLUDES ROUND SYNCHRONIZATION - waits for all clients to complete previous round.
         
         Args:
-            epochs (int): Number of training epochs
-            batch_size (int): Batch size for training
-            verbose (int): Verbosity level
-        
+            current_round (int): Current FL round
+            
         Returns:
-            dict: Training history and metrics
+            dict: Server guidance including gradients and attention weights
+        """
+        max_wait_attempts = 20  # Maximum waiting attempts
+        wait_attempts = 0
+        
+        while wait_attempts < max_wait_attempts:
+            try:
+                response = requests.post(f"{self.server_url}/send_global_guidance", json={
+                    'client_id': self.client_id,
+                    'current_round': current_round
+                })
+                
+                if response.status_code == 200:
+                    guidance = response.json()
+                    print(f"📥 Received guidance for round {current_round + 1}")
+                    print(f"   Gradient shape: {np.array(guidance['embedding_gradients']).shape}")
+                    print(f"   Fusion loss: {guidance['fusion_loss']:.4f}")
+                    print(f"   Guidance weight: {guidance['guidance_weight']}")
+                    return guidance
+                    
+                elif response.status_code == 423:  # Round synchronization wait
+                    sync_info = response.json()
+                    wait_time = sync_info.get('wait_time', 5)
+                    completed = sync_info.get('clients_completed', 0)
+                    total = sync_info.get('total_clients', 1)
+                    
+                    print(f"⏳ Round synchronization: waiting for other clients...")
+                    print(f"   📊 Progress: {completed}/{total} clients completed round {current_round}")
+                    print(f"   ⏰ Waiting {wait_time} seconds... (attempt {wait_attempts + 1}/{max_wait_attempts})")
+                    
+                    time.sleep(wait_time)
+                    wait_attempts += 1
+                    continue
+                    
+                else:
+                    print(f"❌ Failed to receive guidance: {response.text}")
+                    return None
+                    
+            except Exception as e:
+                print(f"❌ Guidance error: {str(e)}")
+                return None
+        
+        print(f"❌ Timeout waiting for round synchronization after {max_wait_attempts} attempts")
+        return None
+    
+    def apply_guided_training(self, server_guidance, epochs=3):
+        """
+        Train local model with server guidance.
+        
+        Args:
+            server_guidance (dict): Guidance from server including gradients
+            epochs (int): Number of epochs for guided training
+            
+        Returns:
+            dict: Training results
         """
         if not hasattr(self, 'train_data') or self.train_data is None:
             raise ValueError("No training data available. Load data first.")
         
-        print(f"\n🖼️  TRAINING IMAGE CLIENT MODEL")
+        print(f"\n🎯 GUIDED TRAINING - Round {self.current_round + 1}")
         print(f"   📊 Training samples: {len(self.train_data['labels'])}")
         print(f"   🔄 Epochs: {epochs}")
-        print(f"   📦 Batch size: {batch_size}")
+        print(f"   📊 Guidance weight: {server_guidance['guidance_weight']}")
         
         # Prepare training data
         train_labels = np.array(self.train_data['labels'])
@@ -383,240 +399,521 @@ class ImageClient:
         train_images = self._load_images(self.train_data['image_paths'])
         val_images = None
         if hasattr(self, 'val_data') and self.val_data is not None:
-            print(f"   📸 Loading validation images...")
             val_images = self._load_images(self.val_data['image_paths'])
         
-        # Compute class weights for imbalanced data
-        class_weights = compute_class_weights(train_labels, method='balanced')
-        print(f"   ⚖️  Class weights computed for {len(set(train_labels))} classes")
+        # Extract guidance parameters
+        embedding_gradients = np.array(server_guidance['embedding_gradients'])
+        guidance_weight = server_guidance['guidance_weight']
+        lr_multiplier = server_guidance['learning_rate_multiplier']
         
-        # Create a temporary classification model for training
-        # This will be used to train the encoder, then we'll extract embeddings
+        # Create guided training model
         encoder_input = self.encoder.input
         encoder_output = self.encoder.output
         
         # Add classification head for training
+        from tensorflow.keras.layers import Dense, BatchNormalization, Dropout
+        from tensorflow.keras.models import Model
+        
         classifier_head = Dense(128, activation='relu', kernel_initializer='he_normal')(encoder_output)
         classifier_head = BatchNormalization()(classifier_head)
         classifier_head = Dropout(0.5)(classifier_head)
         classifier_predictions = Dense(7, activation='softmax', name='predictions')(classifier_head)
         
         # Create training model
-        training_model = Model(inputs=encoder_input, outputs=classifier_predictions, name='image_training_model')
+        training_model = Model(inputs=encoder_input, outputs=classifier_predictions, name='guided_training_model')
         
-        # Compile with appropriate optimizer and loss
+        # Compile with adjusted learning rate
+        base_lr = self.fl_config.get('base_learning_rate', 0.001)
+        adjusted_lr = base_lr * lr_multiplier
+        
         training_model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+            optimizer=tf.keras.optimizers.Adam(learning_rate=adjusted_lr),
             loss='sparse_categorical_crossentropy',
             metrics=['accuracy']
         )
         
-        print(f"   🏗️  Training model created: {training_model.count_params():,} parameters")
+        print(f"   🏗️ Guided training model: {training_model.count_params():,} parameters")
+        print(f"   📈 Adjusted learning rate: {adjusted_lr:.6f}")
         
         # Prepare validation data
         validation_data = None
         if val_images is not None and val_labels is not None:
             validation_data = (val_images, val_labels)
         
-        # Train the model
-        print(f"   🚀 Starting local training...")
+        # Train with guidance
+        print(f"   🚀 Starting guided training...")
         try:
             history = training_model.fit(
                 train_images, train_labels,
-                batch_size=batch_size,
+                batch_size=16,
                 epochs=epochs,
                 validation_data=validation_data,
-                class_weight=class_weights,
-                verbose=verbose,
+                verbose=1,
                 callbacks=[
                     tf.keras.callbacks.EarlyStopping(
                         monitor='val_accuracy' if validation_data else 'accuracy',
-                        patience=5,
-                        restore_best_weights=True
-                    ),
-                    tf.keras.callbacks.ReduceLROnPlateau(
-                        monitor='val_loss' if validation_data else 'loss',
-                        factor=0.5,
                         patience=3,
-                        min_lr=1e-6
+                        restore_best_weights=True
                     )
                 ]
             )
             
             # Extract the trained encoder weights
-            # Copy weights from training model encoder to our embedding model
             for i, layer in enumerate(self.encoder.layers):
-                if i < len(training_model.layers) - 3:  # Exclude the classification head layers
-                    if len(layer.get_weights()) > 0:  # Only copy layers with weights
+                if i < len(training_model.layers) - 3:  # Exclude classification head
+                    if len(layer.get_weights()) > 0:
                         layer.set_weights(training_model.layers[i].get_weights())
-            
-            # Generate and save fresh embeddings with trained model
-            print(f"   💾 Saving fresh embeddings with trained model...")
-            
-            # Generate embeddings for all splits
-            train_embeddings, train_labels_emb, train_indices = self.generate_embeddings('train')
-            val_embeddings, val_labels_emb, val_indices = self.generate_embeddings('val')
-            test_embeddings, test_labels_emb, test_indices = self.generate_embeddings('test')
-            
-            # Save embeddings
-            self.save_embeddings(train_embeddings, train_labels_emb, train_indices, 'train')
-            self.save_embeddings(val_embeddings, val_labels_emb, val_indices, 'val')
-            self.save_embeddings(test_embeddings, test_labels_emb, test_indices, 'test')
             
             # Evaluate final performance
             final_train_acc = max(history.history['accuracy'])
             final_val_acc = max(history.history.get('val_accuracy', [0]))
+            final_loss = min(history.history['loss'])
             
-            print(f"   ✅ Training completed successfully!")
+            print(f"   ✅ Guided training completed!")
             print(f"   🎯 Best training accuracy: {final_train_acc:.4f}")
             if validation_data:
                 print(f"   🎯 Best validation accuracy: {final_val_acc:.4f}")
             
             return {
-                'history': history.history,
-                'final_train_acc': final_train_acc,
-                'final_val_acc': final_val_acc,
-                'epochs_completed': len(history.history['loss'])
+                'accuracy': final_val_acc if validation_data else final_train_acc,
+                'loss': final_loss,
+                'epochs_completed': len(history.history['loss']),
+                'guided_training': True
             }
             
         except Exception as e:
-            print(f"   ❌ Training failed: {str(e)}")
+            print(f"   ❌ Guided training failed: {str(e)}")
             return {
                 'error': str(e),
-                'final_train_acc': 0.0,
-                'final_val_acc': 0.0,
+                'accuracy': 0.0,
+                'loss': float('inf'),
                 'epochs_completed': 0
             }
-
-
-def run_fl_round(args):
-    """Run a single federated learning round for image client."""
-    print(f"🖼️  Image Client - FL Round {args.round_idx + 1}")
-    print("=" * 50)
     
-    try:
-        # Create client
-        client = ImageClient(
-            client_id="image_client",
-            data_percentage=args.data_percentage,
-            learning_rate=args.learning_rate,
-            embedding_dim=args.embedding_dim
+    def generate_and_send_fresh_embeddings(self, current_round, performance_metrics):
+        """
+        Generate fresh embeddings and send to server.
+        
+        Args:
+            current_round (int): Current FL round
+            performance_metrics (dict): Local training performance
+        """
+        print(f"   💾 Generating fresh embeddings after guided training...")
+        
+        # Generate embeddings for all splits
+        train_embeddings, train_labels_emb, train_indices = self.generate_embeddings('train')
+        val_embeddings, val_labels_emb, val_indices = self.generate_embeddings('val')
+        test_embeddings, test_labels_emb, test_indices = self.generate_embeddings('test')
+        
+        # Save embeddings locally
+        self.save_embeddings(train_embeddings, train_labels_emb, train_indices, 'train')
+        self.save_embeddings(val_embeddings, val_labels_emb, val_indices, 'val')
+        self.save_embeddings(test_embeddings, test_labels_emb, test_indices, 'test')
+        
+        # Notify server of fresh embeddings
+        try:
+            response = requests.post(f"{self.server_url}/collect_fresh_embeddings", json={
+                'client_id': self.client_id,
+                'current_round': current_round,
+                'performance_metrics': performance_metrics,
+                'embeddings_data': {
+                    'train_shape': train_embeddings.shape,
+                    'val_shape': val_embeddings.shape,
+                    'test_shape': test_embeddings.shape
+                }
+            })
+            
+            if response.status_code == 200:
+                print(f"   ✅ Server notified of fresh embeddings")
+            else:
+                print(f"   ⚠️ Failed to notify server: {response.text}")
+                
+        except Exception as e:
+            print(f"   ❌ Error notifying server: {str(e)}")
+    
+    def run_passive_client(self):
+        """Run as passive client - wait for server tasks and respond."""
+        if not self.is_registered:
+            print("❌ Client not registered with server")
+            return False
+        
+        print(f"\n🔄 STARTING PASSIVE CLIENT MODE")
+        print(f"⏳ Waiting for server instructions...")
+        print("=" * 50)
+        
+        while True:
+            try:
+                # Poll server for current task
+                response = requests.post(f"{self.server_url}/get_client_task", json={
+                    'client_id': self.client_id
+                })
+                
+                if response.status_code == 200:
+                    task_info = response.json()
+                    task_type = task_info.get('task_type', 'wait')
+                    current_task = task_info.get('current_task', 'idle')
+                    
+                    if task_type == 'initial_training':
+                        print(f"\n📚 RECEIVED TASK: Initial Training")
+                        self.perform_initial_training()
+                        
+                    elif task_type == 'guided_training':
+                        round_num = task_info.get('round', 0)
+                        print(f"\n🔄 RECEIVED TASK: Guided Training - Round {round_num}")
+                        self.perform_guided_training(round_num)
+                        
+                    elif task_type == 'shutdown':
+                        print(f"\n🛑 RECEIVED SHUTDOWN SIGNAL")
+                        print(f"✅ Federated learning completed!")
+                        print(f"🏁 Image client shutting down...")
+                        return True
+                        
+                    else:  # wait
+                        time.sleep(5)  # Wait 5 seconds before polling again
+                        
+                else:
+                    print(f"⚠️ Failed to get task from server: {response.text}")
+                    time.sleep(10)
+                    
+            except Exception as e:
+                print(f"❌ Error communicating with server: {e}")
+                time.sleep(10)
+        
+        return False
+    
+    def perform_initial_training(self):
+        """Perform initial training and send embeddings to server."""
+        print(f"🖼️ PERFORMING INITIAL TRAINING")
+        
+        try:
+            # Load FL config if not already loaded
+            if not self.fl_config:
+                self.get_fl_config()
+            
+            # Perform initial training
+            print(f"   📊 Training samples: {len(self.train_data['labels'])}")
+            print(f"   🔄 Epochs: 2")
+            
+            # Prepare data
+            train_labels = np.array(self.train_data['labels'])
+            val_labels = np.array(self.val_data['labels']) if hasattr(self, 'val_data') else None
+            
+            # Load images
+            print(f"   📸 Loading training images...")
+            train_images = self._load_images(self.train_data['image_paths'])
+            val_images = None
+            if hasattr(self, 'val_data') and self.val_data is not None:
+                val_images = self._load_images(self.val_data['image_paths'])
+            
+            # Create training model
+            encoder_input = self.encoder.input
+            encoder_output = self.encoder.output
+            
+            from tensorflow.keras.layers import Dense, BatchNormalization, Dropout
+            from tensorflow.keras.models import Model
+            
+            classifier_head = Dense(128, activation='relu', kernel_initializer='he_normal')(encoder_output)
+            classifier_head = BatchNormalization()(classifier_head)
+            classifier_head = Dropout(0.5)(classifier_head)
+            classifier_predictions = Dense(7, activation='softmax', name='predictions')(classifier_head)
+            
+            training_model = Model(inputs=encoder_input, outputs=classifier_predictions, name='initial_training_model')
+            
+            training_model.compile(
+                optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+                loss='sparse_categorical_crossentropy',
+                metrics=['accuracy']
+            )
+            
+            print(f"   🏗️ Training model: {training_model.count_params():,} parameters")
+            
+            # Train
+            print(f"   🚀 Starting initial training...")
+            history = training_model.fit(
+                train_images, train_labels,
+                batch_size=16,
+                epochs=2,
+                validation_data=(val_images, val_labels) if val_images is not None else None,
+                verbose=1
+            )
+            
+            # Extract trained encoder weights
+            for i, layer in enumerate(self.encoder.layers):
+                if i < len(training_model.layers) - 3:
+                    if len(layer.get_weights()) > 0:
+                        layer.set_weights(training_model.layers[i].get_weights())
+            
+            # Generate and save embeddings
+            self.generate_and_save_embeddings()
+            
+            # Get performance metrics
+            final_accuracy = max(history.history['accuracy'])
+            final_loss = min(history.history['loss'])
+            
+            # Notify server of completion
+            self.notify_task_completion('initial_training', {
+                'accuracy': final_accuracy,
+                'loss': final_loss
+            })
+            
+            print(f"   ✅ Initial training completed!")
+            print(f"   🎯 Final accuracy: {final_accuracy:.4f}")
+            
+        except Exception as e:
+            print(f"   ❌ Initial training failed: {e}")
+            self.notify_task_completion('initial_training', {'error': str(e)})
+    
+    def perform_guided_training(self, round_num):
+        """Perform guided training for a specific round."""
+        print(f"🎯 PERFORMING GUIDED TRAINING - Round {round_num}")
+        
+        try:
+            # Get guidance from server
+            guidance = self.get_guidance_from_server(round_num - 1)
+            if not guidance:
+                print(f"   ❌ Failed to get guidance from server")
+                return
+            
+            # Perform guided training
+            results = self.apply_guided_training(guidance, epochs=2)
+            
+            # Generate fresh embeddings
+            self.generate_and_save_embeddings()
+            
+            # Notify server of completion
+            self.notify_task_completion(f'round_{round_num}_training', results)
+            
+            print(f"   ✅ Guided training completed for round {round_num}!")
+            
+        except Exception as e:
+            print(f"   ❌ Guided training failed: {e}")
+            self.notify_task_completion(f'round_{round_num}_training', {'error': str(e)})
+    
+    def get_guidance_from_server(self, round_idx):
+        """Get guidance from server for guided training."""
+        max_retries = 10
+        retry_delay = 10  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(f"{self.server_url}/send_global_guidance", json={
+                    'client_id': self.client_id,
+                    'current_round': round_idx
+                })
+                
+                if response.status_code == 200:
+                    guidance = response.json()
+                    print(f"   📥 Received guidance for round {round_idx + 1}")
+                    return guidance
+                elif response.status_code == 423:  # Locked - need to wait for synchronization
+                    response_data = response.json()
+                    wait_time = response_data.get('wait_time', 5)
+                    print(f"   ⏳ Round synchronization - waiting {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"   ❌ Failed to get guidance: {response.text}")
+                    return None
+                    
+            except Exception as e:
+                print(f"   ❌ Error getting guidance: {e}")
+                if attempt < max_retries - 1:
+                    print(f"   🔄 Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    continue
+                return None
+        
+        print(f"   ❌ Max retries exceeded waiting for guidance")
+        return None
+    
+    def generate_and_save_embeddings(self):
+        """Generate embeddings and save them locally."""
+        print(f"   💾 Generating and saving embeddings...")
+        
+        # Generate embeddings for all splits
+        train_embeddings, train_labels_emb, train_indices = self.generate_embeddings('train')
+        val_embeddings, val_labels_emb, val_indices = self.generate_embeddings('val')
+        test_embeddings, test_labels_emb, test_indices = self.generate_embeddings('test')
+        
+        # Save embeddings locally
+        self.save_embeddings(train_embeddings, train_labels_emb, train_indices, 'train')
+        self.save_embeddings(val_embeddings, val_labels_emb, val_indices, 'val')
+        self.save_embeddings(test_embeddings, test_labels_emb, test_indices, 'test')
+        
+        print(f"   ✅ Embeddings generated and saved")
+    
+    def notify_task_completion(self, task_name, performance_metrics):
+        """Notify server that a task has been completed."""
+        try:
+            response = requests.post(f"{self.server_url}/client_task_completed", json={
+                'client_id': self.client_id,
+                'completed_task': task_name,
+                'performance_metrics': performance_metrics
+            })
+            
+            if response.status_code == 200:
+                print(f"   ✅ Notified server of task completion: {task_name}")
+            else:
+                print(f"   ⚠️ Failed to notify server: {response.text}")
+                
+        except Exception as e:
+            print(f"   ❌ Error notifying server: {e}")
+
+    def run_fl_training(self):
+        """Run the complete federated learning training process."""
+        if not self.is_registered:
+            print("❌ Client not registered with server")
+            return False
+        
+        if not self.fl_config:
+            print("❌ FL configuration not loaded")
+            return False
+        
+        print(f"\n🚀 STARTING FEDERATED LEARNING")
+        print(f"   Rounds: {self.fl_config['total_fl_rounds']}")
+        print(f"   Epochs per round: {self.fl_config['client_epochs_per_round']}")
+        print("=" * 50)
+        
+        # Initial training (Round 0)
+        print(f"\n📚 INITIAL TRAINING (Before FL rounds)")
+        initial_results = self.train_local_model(
+            epochs=self.fl_config['client_epochs_per_round'],
+            batch_size=16,
+            verbose=1
         )
         
-        # Load data
-        client.load_data(data_dir=args.data_dir)
+        if 'error' in initial_results:
+            print(f"❌ Initial training failed: {initial_results['error']}")
+            return False
         
-        # Create model
-        client.create_model()
+        print(f"✅ Initial training completed")
+        print(f"   🎯 Initial accuracy: {initial_results['final_val_acc']:.4f}")
         
-        # Load global model from server
-        global_data = client.load_global_model(args.round_idx)
+        # Federated learning rounds
+        for round_idx in range(self.fl_config['total_fl_rounds']):
+            self.current_round = round_idx
+            
+            print(f"\n🔄 FL ROUND {round_idx + 1}/{self.fl_config['total_fl_rounds']}")
+            print("=" * 40)
+            
+            # Step 1: Receive guidance from server
+            guidance = self.receive_global_guidance(round_idx)
+            if guidance is None:
+                print(f"❌ Failed to receive guidance for round {round_idx + 1}")
+                continue
+            
+            # Step 2: Apply guided training
+            guided_results = self.apply_guided_training(
+                guidance, 
+                epochs=self.fl_config['client_epochs_per_round']
+            )
+            
+            if 'error' in guided_results:
+                print(f"❌ Guided training failed: {guided_results['error']}")
+                continue
+            
+            # Step 3: Generate and send fresh embeddings
+            self.generate_and_send_fresh_embeddings(round_idx, guided_results)
+            
+            # Update status
+            update_client_status(
+                client_id=self.client_id,
+                accuracy=guided_results['accuracy'],
+                f1_score=0.0,  # Not computed at client level
+                loss=guided_results['loss'],
+                embeddings_sent=True,
+                weights_updated=True
+            )
+            
+            print(f"✅ Round {round_idx + 1} completed")
+            print(f"   🎯 Accuracy: {guided_results['accuracy']:.4f}")
+            print(f"   📉 Loss: {guided_results['loss']:.4f}")
         
-        # Train on local data
-        print(f"🎯 Training on local data ({args.epochs} epochs)...")
-        results = client.train(epochs=args.epochs, batch_size=args.batch_size)
+        print(f"\n🎉 FEDERATED LEARNING COMPLETED!")
+        print(f"   📊 Total rounds: {self.fl_config['total_fl_rounds']}")
+        print(f"   🎯 Final accuracy: {guided_results['accuracy']:.4f}")
         
-        # Get number of training samples
-        num_samples = len(client.train_data['labels'])
-        
-        # Save model update for server
-        # VFL architecture: No weight updates needed, only embeddings
-        
-        print(f"✅ FL Round {args.round_idx + 1} completed")
-        print(f"   📊 Local accuracy: {client.current_accuracy:.4f}")
-        print(f"   📈 Local F1: {client.current_f1:.4f}")
-        print(f"   📦 Samples: {num_samples}")
-        
-        return 0
-        
-    except Exception as e:
-        print(f"❌ FL Round failed: {e}")
-        return 1
-
+        return True
 
 def main():
-    """Main function for standalone execution."""
-    parser = argparse.ArgumentParser(description='Image Client for VFL')
-    parser.add_argument('--data_dir', type=str, default='data', 
-                       help='Directory containing HAM10000 dataset')
-    parser.add_argument('--data_percentage', type=float, default=0.1,
-                       help='Percentage of data to use (0.0-1.0)')
-    parser.add_argument('--learning_rate', type=float, default=0.001,
-                       help='Learning rate for training')
-    parser.add_argument('--epochs', type=int, default=10,
-                       help='Number of training epochs')
-    parser.add_argument('--batch_size', type=int, default=32,
-                       help='Batch size for training')
-    parser.add_argument('--embedding_dim', type=int, default=256,
-                       help='Embedding dimension')
-    parser.add_argument('--output_dir', type=str, default='embeddings',
-                       help='Output directory for embeddings')
-    parser.add_argument('--mode', type=str, default='train', 
-                       choices=['train', 'evaluate', 'generate_embeddings'],
-                       help='Mode of operation')
-    
-    # Federated Learning arguments
-    parser.add_argument('--fl_mode', type=str, default='false',
-                       help='Enable federated learning mode')
-    parser.add_argument('--round_idx', type=int, default=0,
-                       help='Current FL round index')
+    parser = argparse.ArgumentParser(description='Distributed Image Client')
+    parser.add_argument('--mode', choices=['local', 'distributed'], default='local',
+                        help='Deployment mode')
+    parser.add_argument('--server_host', type=str, default=None,
+                        help='Server host (overrides config)')
+    parser.add_argument('--server_port', type=int, default=None,
+                        help='Server port (overrides config)')
+    parser.add_argument('--data_dir', type=str, default='data',
+                        help='Data directory')
     
     args = parser.parse_args()
     
-    # Check for FL mode
-    if args.fl_mode.lower() == 'true':
-        # FL mode - participate in federated round
-        return run_fl_round(args)
+    # Get client configuration
+    client_config = get_client_config('image', args.mode)
+    config = get_config()
+    
+    server_host = args.server_host or client_config['server_host']
+    server_port = args.server_port or client_config['server_port']
+    
+    print(f"🖼️ Starting Distributed Image Client in {args.mode} mode")
+    print(f"📡 Server: http://{server_host}:{server_port}")
+    print(f"🧠 Strategy: Fusion-Guided Weight Updates")
     
     # Create client
-    client = ImageClient(
+    client = DistributedImageClient(
+        server_host=server_host,
+        server_port=server_port,
         client_id="image_client",
-        data_percentage=args.data_percentage,
-        learning_rate=args.learning_rate,
-        embedding_dim=args.embedding_dim
+        data_percentage=config['data']['data_percentage'],
+        learning_rate=config['training']['client_learning_rate'],
+        embedding_dim=config['model']['embedding_dim']
     )
     
-    # Load data
-    client.load_data(data_dir=args.data_dir)
-    
-    # Create model
-    client.create_model()
-    
-    if args.mode == 'train':
-        # Train model
-        client.train(epochs=args.epochs, batch_size=args.batch_size)
+    try:
+        # Step 1: Load data
+        print("\n📊 Loading data...")
+        client.load_data(data_dir=args.data_dir)
         
-        # Evaluate model
-        client.evaluate()
+        # Step 2: Create model
+        print("🏗️ Creating model...")
+        client.create_model(
+            use_step3_enhancements=True,
+            use_lightweight=config['model'].get('use_lightweight_model', True)
+        )
         
-        # Save model
-        client.save_model()
+        # Step 3: Register with server
+        print("📝 Registering with server...")
+        if not client.register_with_server():
+            print("❌ Failed to register with server")
+            return 1
         
-        # Generate and save embeddings for all splits
-        for split in ['train', 'val', 'test']:
-            embeddings, labels, indices = client.generate_embeddings(split)
-            client.save_embeddings(embeddings, labels, indices, 
-                                 data_split=split, output_dir=args.output_dir)
-    
-    elif args.mode == 'evaluate':
-        # Load existing model
-        client.load_model_weights()
+        # Step 4: Get FL configuration
+        print("📥 Getting FL configuration...")
+        if not client.get_fl_config():
+            print("❌ Failed to get FL configuration")
+            return 1
         
-        # Evaluate model
-        client.evaluate()
-    
-    elif args.mode == 'generate_embeddings':
-        # Load existing model  
-        client.load_model_weights()
+        # Step 5: Run passive client mode
+        print("🚀 Starting passive client mode...")
+        print(f"   📡 Waiting for server instructions...")
+        print(f"   🆔 Client ID: {client.client_id}")
+        print(f"   📊 Training samples: {len(client.train_data['labels'])}")
         
-        # Generate embeddings for all splits
-        for split in ['train', 'val', 'test']:
-            embeddings, labels, indices = client.generate_embeddings(split)
-            client.save_embeddings(embeddings, labels, indices,
-                                 data_split=split, output_dir=args.output_dir)
-    
-    print(f"\n✅ {client.client_id} completed successfully!")
-
+        if not client.run_passive_client():
+            print("❌ Passive client failed")
+            return 1
+        
+        print("✅ Distributed Image Client completed successfully!")
+        return 0
+        
+    except KeyboardInterrupt:
+        print("\n⚠️ Training interrupted by user")
+        return 1
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return 1
 
 if __name__ == "__main__":
-    main() 
+    exit(main()) 

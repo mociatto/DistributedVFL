@@ -19,7 +19,7 @@ VERSION = "4.0.0"  # Post-architectural improvements
 DATA_CONFIG = {
     # Dataset settings
     'dataset_name': 'HAM10000',
-    'data_percentage': 0.2,  # Use 10% of data for faster experimentation
+    'data_percentage': 0.05,
     'num_classes': 7,
     'class_names': ['akiec', 'bcc', 'bkl', 'df', 'mel', 'nv', 'vasc'],
     
@@ -94,8 +94,8 @@ MODEL_CONFIG = {
 
 TRAINING_CONFIG = {
     # VFL training settings
-    'total_rounds': 3,
-    'epochs_per_round': 8,
+    'total_rounds': 2,
+    'epochs_per_round': 2,
     'batch_size': 16,
     'learning_rate': 0.0005,  # Reduced by 50% for better generalization
     
@@ -207,6 +207,46 @@ PRIVACY_CONFIG = {
     # Secure aggregation
     'use_secure_aggregation': False,
     'encryption_key_size': 2048
+}
+
+# =============================================================================
+# FEDERATED LEARNING CONFIGURATION (True FL Implementation)
+# =============================================================================
+
+FEDERATED_LEARNING_CONFIG = {
+    # FL Training Strategy
+    'strategy': 'fusion_guided_updates',  # 'fusion_guided_updates', 'federated_avg', 'embeddings_only'
+    'enable_true_fl': True,  # Enable iterative client retraining per round
+    
+    # FL Round Configuration
+    'total_fl_rounds': 2,  # Total federated learning rounds
+    'client_epochs_per_round': 2,  # Epochs for client retraining per FL round
+    'collect_fresh_embeddings': True,  # Generate new embeddings each round
+    
+    # Fusion-Guided Updates Settings
+    'send_embedding_gradients': True,  # Send gradients w.r.t embeddings to clients
+    'send_attention_weights': True,  # Send fusion attention weights as guidance
+    'gradient_scaling_factor': 0.1,  # Scale gradients for stable client updates
+    'attention_weight_threshold': 0.01,  # Minimum attention weight to consider
+    
+    # Client Update Strategy
+    'client_learning_rate_multiplier': 0.5,  # Reduce LR for guided updates (0.5x base LR)
+    'use_guided_training': True,  # Apply server guidance during client training
+    'guidance_weight': 0.3,  # Weight for guidance loss vs local classification loss
+    
+    # Performance Tracking
+    'track_round_improvements': True,  # Track accuracy improvement per round
+    'min_round_improvement': 0.005,  # Minimum improvement to continue (0.5%)
+    'convergence_patience': 2,  # Stop if no improvement for N rounds
+    
+    # Communication Settings
+    'max_gradient_norm': 1.0,  # Clip gradients sent to clients
+    'compress_communications': False,  # Compress large tensors (future feature)
+    
+    # Debugging and Monitoring
+    'save_round_models': True,  # Save server fusion model each round
+    'log_client_performance': True,  # Log individual client metrics
+    'visualize_attention_evolution': True  # Track attention weight changes
 }
 
 # =============================================================================
@@ -325,6 +365,7 @@ def get_config(section=None):
         'loss': LOSS_CONFIG,
         'generalization': GENERALIZATION_CONFIG,
         'privacy': PRIVACY_CONFIG,
+        'federated_learning': FEDERATED_LEARNING_CONFIG,
         'system': SYSTEM_CONFIG,
         'phase': PHASE_CONFIG,
         'evaluation': EVALUATION_CONFIG

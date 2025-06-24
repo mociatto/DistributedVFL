@@ -9,7 +9,7 @@ from datetime import datetime
 import os
 
 
-def update_training_status(current_round, total_rounds, accuracy=None, loss=None, 
+def update_training_status(current_round, total_rounds, accuracy=None, loss=None,
                           f1_score=None, client_weights=None, phase="training"):
     """
     Update the training status JSON file with current progress.
@@ -46,7 +46,7 @@ def update_training_status(current_round, total_rounds, accuracy=None, loss=None
         print(f"Warning: Could not update status file: {e}")
 
 
-def update_client_status(client_id, accuracy=None, loss=None, f1_score=None, 
+def update_client_status(client_id, accuracy=None, loss=None, f1_score=None,
                         embeddings_sent=False, weights_updated=False):
     """
     Update individual client status.
@@ -164,4 +164,4 @@ def cleanup_status_files():
             if os.path.exists(file):
                 os.remove(file)
         except Exception as e:
-            print(f"Warning: Could not remove {file}: {e}") 
+            print(f"Warning: Could not remove {file}: {e}")

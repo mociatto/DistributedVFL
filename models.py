@@ -356,12 +356,12 @@ def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128,
         print("   🔄 Using advanced transformer fusion (Step 2)")
         
         # Cross-modal attention mechanism
-        # Expand dimensions for attention computation
-        image_expanded = tf.expand_dims(image_norm, axis=1)  # (batch, 1, dim)
-        tabular_expanded = tf.expand_dims(tabular_norm, axis=1)  # (batch, 1, dim)
+        # Expand dimensions for attention computation using Keras layers
+        image_expanded = tf.keras.layers.Lambda(lambda x: tf.expand_dims(x, axis=1))(image_norm)  # (batch, 1, dim)
+        tabular_expanded = tf.keras.layers.Lambda(lambda x: tf.expand_dims(x, axis=1))(tabular_norm)  # (batch, 1, dim)
         
         # Stack for multi-head attention
-        stacked_embeddings = tf.concat([image_expanded, tabular_expanded], axis=1)  # (batch, 2, dim)
+        stacked_embeddings = tf.keras.layers.Concatenate(axis=1)([image_expanded, tabular_expanded])  # (batch, 2, dim)
         
         # Multi-head self-attention for cross-modal fusion
         attention_output = MultiHeadAttention(

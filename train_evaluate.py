@@ -399,20 +399,29 @@ def evaluate_fusion_model(fusion_model, image_embeddings, tabular_embeddings, la
     
     # Confusion matrix
     if save_confusion_matrix and class_names is not None:
-        cm = confusion_matrix(labels, pred_classes)
-        
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                   xticklabels=class_names, yticklabels=class_names)
-        plt.title('Confusion Matrix - Fusion Model')
-        plt.ylabel('True Label')
-        plt.xlabel('Predicted Label')
-        plt.tight_layout()
-        plt.savefig('confusion_matrix_fusion.png', dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        if verbose > 0:
-            print("Confusion matrix saved as 'confusion_matrix_fusion.png'")
+        try:
+            import matplotlib
+            matplotlib.use('Agg')  # Use non-GUI backend for thread safety
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+            
+            cm = confusion_matrix(labels, pred_classes)
+            
+            plt.figure(figsize=(10, 8))
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                       xticklabels=class_names, yticklabels=class_names)
+            plt.title('Confusion Matrix - Fusion Model')
+            plt.ylabel('True Label')
+            plt.xlabel('Predicted Label')
+            plt.tight_layout()
+            plt.savefig('confusion_matrix_fusion.png', dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            if verbose > 0:
+                print("Confusion matrix saved as 'confusion_matrix_fusion.png'")
+        except Exception as e:
+            if verbose > 0:
+                print(f"⚠️ Could not save confusion matrix: {e}")
     
     return {
         'accuracy': accuracy,

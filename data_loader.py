@@ -31,7 +31,7 @@ def load_and_preprocess_image(img_path, target_size=(224, 224), augment=False, u
     try:
         # Load image using PIL for better compatibility
         img = Image.open(img_path).convert('RGB')
-        img = img.resize(target_size, Image.BILINEAR)  # Use bilinear for EfficientNet
+        img = img.resize(target_size, Image.BILINEAR) # Use bilinear for EfficientNet
         img_array = np.array(img, dtype=np.float32)
         
         # Apply data augmentation if requested
@@ -96,7 +96,7 @@ def apply_augmentation(img_array):
     
     # Random rotation using rot90 (90-degree increments)
     if random.random() > 0.7:
-        k = random.choice([0, 1, 2, 3])  # 0, 90, 180, 270 degrees
+        k = random.choice([0, 1, 2, 3]) # 0, 90, 180, 270 degrees
         img_tensor = tf.image.rot90(img_tensor, k=k)
     
     return img_tensor.numpy()
@@ -164,10 +164,10 @@ class HAM10000DataLoader:
         self._create_splits()
         
         print(f"Data loading complete:")
-        print(f"  - Train samples: {len(self.train_indices)}")
-        print(f"  - Validation samples: {len(self.val_indices)}")
-        print(f"  - Test samples: {len(self.test_indices)}")
-        print(f"  - Class distribution: {dict(zip(*np.unique(self.labels, return_counts=True)))}")
+        print(f" - Train samples: {len(self.train_indices)}")
+        print(f" - Validation samples: {len(self.val_indices)}")
+        print(f" - Test samples: {len(self.test_indices)}")
+        print(f" - Class distribution: {dict(zip(*np.unique(self.labels, return_counts=True)))}")
     
     def _preprocess_metadata(self):
         """Preprocess the metadata."""
@@ -184,9 +184,9 @@ class HAM10000DataLoader:
         
         # Create age bins for sensitive attribute analysis
         self.df['age_bin'] = pd.cut(
-            self.df['age'], 
-            bins=[0, 30, 45, 60, 75, 120], 
-            labels=[0, 1, 2, 3, 4], 
+            self.df['age'],
+            bins=[0, 30, 45, 60, 75, 120],
+            labels=[0, 1, 2, 3, 4],
             include_lowest=True
         ).astype(int)
         
@@ -348,23 +348,23 @@ class HAM10000DataLoader:
             data_percentage (float): Percentage of data to use
         """
         if data_percentage >= 1.0:
-            return  # Use all data
+            return # Use all data
         
         # Calculate total samples to keep
         total_samples = int(len(self.df) * data_percentage)
         n_classes = len(self.df['dx'].unique())
         
         # MUCH MORE BALANCED: Equal samples per class with minimum viable size
-        samples_per_class = max(30, total_samples // n_classes)  # At least 30 per class
+        samples_per_class = max(30, total_samples // n_classes) # At least 30 per class
         max_total = samples_per_class * n_classes
         
         # If we exceed budget, reduce proportionally but maintain minimum
         if max_total > total_samples:
             samples_per_class = max(25, total_samples // n_classes)
         
-        print(f"   📊 Balanced sampling strategy:")
-        print(f"   - Target samples per class: {samples_per_class}")
-        print(f"   - Maximum total samples: {samples_per_class * n_classes}")
+        print(f" Balanced sampling strategy:")
+        print(f" - Target samples per class: {samples_per_class}")
+        print(f" - Maximum total samples: {samples_per_class * n_classes}")
         
         sampled_dfs = []
         total_sampled = 0
@@ -383,7 +383,7 @@ class HAM10000DataLoader:
                 total_sampled += samples_to_take
                 
                 percentage = (samples_to_take / available_samples) * 100
-                print(f"   📈 Class '{class_name}': {samples_to_take}/{available_samples} samples ({percentage:.1f}%)")
+                print(f" Class '{class_name}': {samples_to_take}/{available_samples} samples ({percentage:.1f}%)")
         
         # Combine all sampled data
         self.df = pd.concat(sampled_dfs, ignore_index=True)
@@ -393,15 +393,15 @@ class HAM10000DataLoader:
         
         # Verify final distribution
         final_distribution = self.df['dx'].value_counts().sort_index()
-        print(f"   ✅ Final BALANCED class distribution:")
+        print(f" Final BALANCED class distribution:")
         for class_name, count in final_distribution.items():
             percentage = (count / len(self.df)) * 100
-            print(f"      {class_name}: {count} samples ({percentage:.1f}%)")
+            print(f" {class_name}: {count} samples ({percentage:.1f}%)")
         
-        print(f"   ✅ Balanced stratified sampling complete: {len(self.df)} total samples")
+        print(f" Balanced stratified sampling complete: {len(self.df)} total samples")
 
 
-def create_data_generator(image_paths, tabular_features, labels, batch_size=32, 
+def create_data_generator(image_paths, tabular_features, labels, batch_size=32,
                          target_size=(224, 224), augment=False, shuffle=True):
     """
     Create a data generator for training.
@@ -433,8 +433,8 @@ def create_data_generator(image_paths, tabular_features, labels, batch_size=32,
             for idx in batch_indices:
                 # Load and preprocess image
                 img = load_and_preprocess_image(
-                    image_paths[idx], 
-                    target_size=target_size, 
+                    image_paths[idx],
+                    target_size=target_size,
                     augment=augment
                 )
                 batch_images.append(img)
@@ -456,4 +456,4 @@ def create_data_generator(image_paths, tabular_features, labels, batch_size=32,
     )
     
     dataset = tf.data.Dataset.from_generator(generator, output_signature=output_signature)
-    return dataset 
+    return dataset

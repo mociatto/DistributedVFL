@@ -1,130 +1,280 @@
-# FairVFL-HAM10K: Fairness-Aware Vertical Federated Learning for Skin Cancer Detection
+# GuardianFL: Distributed Federated Learning for Skin Cancer Detection
 
-A modular Python implementation of **FairVFL** adapted for the HAM10000 skin lesion dataset.  
-This project provides a research-ready codebase for exploring fairness and privacy in vertical federated learning using both image and tabular medical data and demonstrates metrics and plots on a modern front-end dashboard.
+A **distributed federated learning system** for medical image analysis using the HAM10000 skin lesion dataset. This system allows multiple computers to train AI models together while keeping their data private and separate.
 
----
+## 🎯 What This Does
 
-## Project Structure
-
-- `main.py` — Entry point for training and evaluation  
-- `data.py` — Data loading and preprocessing (HAM10000 images + metadata)  
-- `model.py` — Model architectures (CNN, tabular encoder, fairness heads)  
-- `train.py` — Training routines  
-- `evaluate.py` — Evaluation and fairness audit routines  
-- `dashboard.py` — Flask/SocketIO backend for dashboard live metrics  
-- `templates/dashboard.html` — Dashboard front-end template  
-- `statics/dashboard.css` — Dashboard CSS styles  
-- `statics/dashboard.js` — Dashboard interactive JS  
-- `requirements.txt` — Python dependencies  
-- `.gitignore` — Standard ignores for Python and data  
-- `/data/` — Place the HAM10000 dataset here  
+- **Analyzes skin cancer images** using advanced AI models
+- **Keeps data private** - each computer keeps its own data
+- **Trains together** - computers collaborate without sharing raw data
+- **Works on multiple machines** - perfect for hospitals or research labs
 
 ---
 
-## Setup
+## 🏗️ How It Works
 
-1. **Clone this repository.**
+The system has **3 parts** that run on separate computers:
 
-2. **Download the HAM10000 dataset** from [here](https://www.kaggle.com/datasets/kmader/skin-cancer-mnist-ham10000)  
-   Place the extracted folders and CSV in your `/data` directory as follows:
-
-    ```
-    data/
-    ├── HAM10000_images_part_1/
-    │   ├── ISIC_0024306.jpg
-    │   ├── ...
-    ├── HAM10000_images_part_2/
-    │   ├── ISIC_0032012.jpg
-    │   ├── ...
-    ├── HAM10000_metadata.csv
-    ```
-
-3. **Install dependencies:**
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
----
-
-## Run
-
-### **Run the Project with Dashboard**
-
-To launch the live dashboard and start FairVFL training with real-time metrics, run:
-
-```bash
-python dashboard.py
+```
+🖥️ SERVER (Port 8080)          🖥️ IMAGE CLIENT (Port 8081)     🖥️ TABULAR CLIENT (Port 8082)
+┌─────────────────────┐         ┌─────────────────────┐         ┌─────────────────────┐
+│ • Coordinates training │       │ • Processes images   │       │ • Processes data     │
+│ • Combines AI models   │  ←──→ │ • Has image files    │  ←──→ │ • Has CSV metadata   │
+│ • No raw data needed  │       │ • Generates features │       │ • Generates features │
+└─────────────────────┘         └─────────────────────┘         └─────────────────────┘
 ```
 
-It opens http://localhost:5050 in your browser to view the dashboard.
-Dashboard front-end is served via Flask/SocketIO and will automatically update with training progress.
+Each computer communicates through **HTTP** (like websites talking to each other).
 
-### **Run CLI only**
+---
 
-If you only want to run the core training and evaluation via CLI, use:
+## 📁 Setup
+
+### 1. Get the HAM10000 Dataset
+
+Download from [Kaggle HAM10000](https://www.kaggle.com/datasets/kmader/skin-cancer-mnist-ham10000)
+
+You'll get:
+- `HAM10000_images_part_1/` (folder with images)
+- `HAM10000_images_part_2/` (folder with images)  
+- `HAM10000_metadata.csv` (data about each image)
+
+### 2. Install Python Packages
 
 ```bash
-python main.py
+pip install -r requirements.txt
 ```
-Note: For faster testing, you can reduce the percentage of data used by setting the `PERCENTAGE` variable in `main.py` to a lower value (e.g., `PERCENTAGE = 0.1` for 10% of the data). This will significantly speed up training and evaluation, making it ideal for quick experiments or debugging.**
+
+### 3. Distribute Data to Computers
+
+**🖥️ Server Computer:**
+```
+GuardianFL/
+├── server.py
+├── models.py
+├── config.py
+└── (other Python files)
+```
+**No data needed!** The server just coordinates.
+
+**🖥️ Image Client Computer:**
+```
+GuardianFL/
+├── image_client.py  
+├── data/
+│   ├── HAM10000_images_part_1/
+│   └── HAM10000_images_part_2/
+└── (other Python files)
+```
+**Only image folders!** No CSV file.
+
+**🖥️ Tabular Client Computer:**
+```
+GuardianFL/
+├── tabular_client.py
+├── data/
+│   └── HAM10000_metadata.csv
+└── (other Python files)
+```
+**Only CSV file!** No image folders.
+
+---
+
+## 🚀 Running the System
+
+### Single Computer Testing (Easy Start)
+
+If you want to test everything on one computer first:
+
+**Terminal 1** - Start Server:
+```bash
+python3 server.py
+```
+
+**Terminal 2** - Start Image Client:  
+```bash
+python3 image_client.py
+```
+
+**Terminal 3** - Start Tabular Client:
+```bash
+python3 tabular_client.py
+```
+
+The system will automatically start training when both clients connect!
+
+### Multiple Computer Setup (Real Deployment)
+
+#### Step 1: Configure Network
+
+Edit `network_config.py` with your computer IPs:
 
 ```python
-PERCENTAGE = 0.1  # Use only 10% of data for fast testing
-``` 
+# Example IPs - change these to match your network
+DISTRIBUTED_CONFIG = {
+    'server': {
+        'host': '0.0.0.0',  # Server listens to all
+        'port': 8080
+    }
+}
+```
 
-## Recent Improvements (Latest Updates)
+#### Step 2: Start Components (in this order)
 
-### ✅ **1. Enhanced Resume Functionality**
-- **Comprehensive State Saving**: Now saves complete training state including best metrics, round history, and model configuration
-- **Configuration Compatibility Check**: Validates model architecture compatibility when resuming
-- **Usage**: `python3 main.py --resume` to continue from the best saved model
-- **State Persistence**: Automatically saves training progress and can resume from any interruption
+**🖥️ On Server Computer:**
+```bash
+python3 server.py --mode distributed
+```
 
-### ✅ **2. Performance Optimizations for Small Datasets**
+**🖥️ On Image Client Computer:**
+```bash
+python3 image_client.py --mode distributed --server_host 192.168.1.100
+```
+*(Replace `192.168.1.100` with your server's actual IP)*
 
-#### **Model Architecture Improvements**:
-- **Lightweight Image Encoder**: Reduced from 5.8M to 590K parameters (90% reduction)
-  - Simplified CNN architecture with fewer filters
-  - Removed redundant dense layers
-  - Added stronger dropout regularization (0.3-0.5)
-- **Simplified Tabular Encoder**: Reduced from 439K to 28K parameters (94% reduction)
-  - Removed complex attention mechanisms
-  - Streamlined architecture for 3-feature input
-- **Optimized Fusion Model**: Reduced from 827K to 367K parameters (56% reduction)
+**🖥️ On Tabular Client Computer:**
+```bash
+python3 tabular_client.py --mode distributed --server_host 192.168.1.100
+```
+*(Replace `192.168.1.100` with your server's actual IP)*
 
-#### **Better Class Imbalance Handling**:
-- **Stratified Sampling**: Ensures minimum representation of all classes
-- **Log-Balanced Class Weights**: New weighting strategy for extreme imbalance
-- **Improved Data Distribution**: Guarantees at least 35 samples per class
+---
 
-#### **Training Improvements**:
-- **Better Hyperparameters**: Lower learning rate (0.0005), smaller batch size (16), more epochs (5)
-- **Enhanced Regularization**: Stronger dropout, batch normalization, early stopping
-- **Real Evaluation Metrics**: Fixed fake placeholder metrics with actual fusion model evaluation
+## 🔧 Important Network Info
 
-### ✅ **3. Results Comparison**
+### Ports Used
+- **8080** - Server (main coordinator)
+- **8081** - Image Client (when running locally)
+- **8082** - Tabular Client (when running locally)
 
-| Metric | Before Optimization | After Optimization |
-|--------|-------------------|-------------------|
-| **Image Encoder Parameters** | 5,876,800 | 589,632 (-90%) |
-| **Tabular Encoder Parameters** | 438,668 | 27,980 (-94%) |
-| **Fusion Model Parameters** | 826,887 | 366,727 (-56%) |
-| **Training Time/Round** | ~240s | ~75s (-69%) |
-| **Real Evaluation** | ❌ Fake metrics | ✅ Actual fusion evaluation |
-| **Class Balance** | Poor | ✅ Minimum 35 samples/class |
-| **Resume Capability** | ❌ Basic | ✅ Full state restoration |
+### Firewall Settings
+Make sure these ports are **open** on your network. If you can't connect, check your firewall.
 
-### ✅ **4. Performance Analysis**
-- **Validation Accuracy**: Improved from 6% to 22% (3.7x improvement)
-- **Model Efficiency**: Dramatically reduced overfitting risk
-- **Training Stability**: Better convergence with improved regularization
-- **Real Metrics**: Now shows actual model performance instead of fake placeholders
+### Finding Your Computer's IP
+**Windows:**
+```cmd
+ipconfig
+```
 
-### 🎯 **Next Steps for Further Improvement**
-1. **Data Augmentation**: Implement advanced image augmentation strategies
-2. **Transfer Learning**: Use pre-trained models for better feature extraction
-3. **Advanced Fusion**: Implement cross-attention mechanisms
-4. **Ensemble Methods**: Combine multiple model predictions
-5. **Hyperparameter Tuning**: Systematic optimization of learning parameters
+**Mac/Linux:**
+```bash
+ifconfig
+```
+
+Look for something like `192.168.1.100` or `10.0.0.5`.
+
+---
+
+## 📊 What You'll See
+
+### Server Output
+```
+🚀 Starting Distributed FL Server...
+🏗️ Initializing models...
+✅ Server initialized
+✅ Registered image client
+✅ Registered tabular client
+🎯 STARTING FEDERATED LEARNING
+🔄 FL ROUND 1/2
+✅ Round 1 complete: Accuracy: 21.25%
+🏆 FINAL RESULTS: Test Accuracy: 19.00%
+```
+
+### Client Output
+```
+🖼️ Starting Image Client...
+📊 Loading data...
+✅ Data loaded: 317 training samples
+📝 Registering with server...
+✅ Registered successfully
+🚀 Training local model...
+✅ Training completed!
+```
+
+---
+
+## ⚙️ Configuration
+
+### Speed vs Accuracy
+
+In `config.py`, you can adjust:
+
+```python
+# Use less data for faster testing
+'data_percentage': 0.05,  # 5% of data (fast)
+'data_percentage': 0.1,   # 10% of data (medium)  
+'data_percentage': 1.0,   # 100% of data (slow but best)
+
+# Training rounds
+'total_fl_rounds': 2,     # Quick test
+'total_fl_rounds': 5,     # Better results
+```
+
+### Advanced Features (Already Built-In)
+
+The system includes sophisticated AI features:
+- **EfficientNetV2** - Advanced image processing  
+- **Transformer Fusion** - Smart data combination
+- **Attention Mechanisms** - Focuses on important features
+- **Class Balance Handling** - Works with uneven data
+- **Transfer Learning** - Uses pre-trained models
+
+---
+
+## 🔍 Troubleshooting
+
+### "Connection refused" 
+- Start the **server first**
+- Check if the **IP address is correct**
+- Make sure **firewall allows the ports**
+
+### "Failed to register"
+- Server must be running before clients
+- Check network connection between computers
+- Verify port 8080 is open
+
+### "Training failed"
+- Make sure **both clients** are connected
+- Check that **data files exist** in the right folders
+- Ensure enough **disk space** for models
+
+### Slow Performance
+- Reduce `data_percentage` in config for faster testing
+- Use fewer `total_fl_rounds` for quicker results
+
+---
+
+## 📈 Expected Results
+
+With the full dataset:
+- **Training Time:** ~5-10 minutes per round
+- **Accuracy Range:** 15-30% (this is normal for medical image classification)
+- **Output Files:** 
+  - `results/distributed_fl_results_*.json` - Performance metrics
+  - `models/best_fusion_model.h5` - Trained AI model
+
+---
+
+## 💡 Tips for Beginners
+
+1. **Start with one computer** - Get familiar with the system first
+2. **Use small data** - Set `data_percentage: 0.05` for quick tests  
+3. **Check the terminal** - All important info shows up there
+4. **Be patient** - AI training takes time, especially with images
+5. **Check your network** - Most issues are connection problems
+
+---
+
+## 🏥 For Medical/Research Use
+
+This system is designed for:
+- **Hospitals** with multiple locations
+- **Research collaborations** between institutions  
+- **Privacy-sensitive** medical data analysis
+- **Distributed AI** without sharing raw patient data
+
+The federated learning approach means each site keeps their data private while contributing to a shared AI model.
+
+---
+
+*Ready to start? Run the single computer test first, then expand to multiple machines when you're comfortable!*
