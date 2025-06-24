@@ -13,7 +13,7 @@ class NetworkConfig:
         'server': {
             'host': 'localhost',
             'port': 8080,
-            'timeout': 300,  # 5 minutes
+            'timeout': 300,
             'max_retries': 3
         },
         'image_client': {
@@ -39,13 +39,13 @@ class NetworkConfig:
             'max_retries': 3
         },
         'image_client': {
-            'host': '192.168.1.101',  # Image client mini-PC IP
+            'host': '192.168.1.101',  # Image client IP
             'port': 8081,
             'client_id': 'image_client',
             'data_type': 'image'
         },
         'tabular_client': {
-            'host': '192.168.1.102',  # Tabular client mini-PC IP
+            'host': '192.168.1.102',  # Tabular client IP
             'port': 8082,
             'client_id': 'tabular_client', 
             'data_type': 'tabular'

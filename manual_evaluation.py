@@ -29,7 +29,7 @@ def load_embeddings(client_type, split='test'):
     embeddings_file = f'embeddings/{client_type}_client_{split}_embeddings.pkl'
     
     if not os.path.exists(embeddings_file):
-        print(f"❌ Embeddings file not found: {embeddings_file}")
+        print(f"Embeddings file not found: {embeddings_file}")
         return None, None, None
     
     with open(embeddings_file, 'rb') as f:
@@ -39,7 +39,7 @@ def load_embeddings(client_type, split='test'):
     labels = data['labels'] 
     indices = data.get('indices', list(range(len(labels))))
     
-    print(f"✅ Loaded {client_type} {split} embeddings: {embeddings.shape}")
+    print(f"Loaded {client_type} {split} embeddings: {embeddings.shape}")
     return embeddings, labels, indices
 
 def create_and_load_fusion_model():
@@ -56,7 +56,7 @@ def create_and_load_fusion_model():
         use_step3_enhancements=True  # Same as training
     )
     
-    print(f"✅ Created fusion model: {fusion_model.count_params():,} parameters")
+    print(f"Created fusion model: {fusion_model.count_params():,} parameters")
     return fusion_model
 
 def evaluate_global_model():
@@ -69,7 +69,7 @@ def evaluate_global_model():
     3. Run fusion model inference on embeddings
     4. Compute accuracy and F1 score
     """
-    print("🔍 MANUAL GLOBAL MODEL EVALUATION")
+    print("MANUAL GLOBAL MODEL EVALUATION")
     print("=" * 50)
     
     # Load test embeddings from both clients
@@ -77,15 +77,15 @@ def evaluate_global_model():
     tabular_embeddings, tabular_labels, tabular_indices = load_embeddings('tabular', 'test')
     
     if image_embeddings is None or tabular_embeddings is None:
-        print("❌ Cannot load embeddings - evaluation failed")
+        print("Cannot load embeddings - evaluation failed")
         return None
     
     # Verify label consistency
     if not np.array_equal(image_labels, tabular_labels):
-        print("⚠️ Warning: Image and tabular labels don't match - using image labels")
+        print("Warning: Image and tabular labels don't match - using image labels")
     
     test_labels = image_labels
-    print(f"📊 Test samples: {len(test_labels)}")
+    print(f"Test samples: {len(test_labels)}")
     
     # Create fusion model
     fusion_model = create_and_load_fusion_model()
@@ -94,7 +94,7 @@ def evaluate_global_model():
     image_emb_tensor = tf.convert_to_tensor(image_embeddings, dtype=tf.float32)
     tabular_emb_tensor = tf.convert_to_tensor(tabular_embeddings, dtype=tf.float32)
     
-    print("🚀 Running inference on test embeddings...")
+    print("Running inference on test embeddings...")
     
     # Get predictions from fusion model
     predictions = fusion_model([image_emb_tensor, tabular_emb_tensor])
@@ -115,13 +115,13 @@ def evaluate_global_model():
                                  output_dict=True)
     
     # Display results
-    print(f"\n🏆 GLOBAL FUSION MODEL RESULTS:")
-    print(f"   🎯 Test Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
-    print(f"   📈 F1 Score (Macro): {f1_macro:.4f}")
-    print(f"   📈 F1 Score (Weighted): {f1_weighted:.4f}")
-    print(f"   📊 Test Samples: {len(test_labels)}")
+    print(f"\nGLOBAL FUSION MODEL RESULTS:")
+    print(f"   Test Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
+    print(f"   F1 Score (Macro): {f1_macro:.4f}")
+    print(f"   F1 Score (Weighted): {f1_weighted:.4f}")
+    print(f"   Test Samples: {len(test_labels)}")
     
-    print(f"\n📋 PER-CLASS PERFORMANCE:")
+    print(f"\nPER-CLASS PERFORMANCE:")
     for i, class_name in enumerate(class_names):
         if str(i) in report:
             precision = report[str(i)]['precision']
@@ -150,7 +150,7 @@ def evaluate_global_model():
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=2)
     
-    print(f"\n💾 Results saved to: {results_file}")
+    print(f"\nResults saved to: {results_file}")
     
     return results
 
@@ -176,28 +176,28 @@ def main():
     This is exactly how distributed FL works - server never sees raw data,
     only processed embeddings from clients!
     """
-    print("🧠 HOW SERVER EVALUATES WITHOUT RAW DATA:")
+    print("HOW SERVER EVALUATES WITHOUT RAW DATA:")
     print("=" * 50)
-    print("1. ✅ Clients send embeddings (not raw data) to server")
-    print("2. ✅ Server trains fusion model on embeddings")  
-    print("3. ✅ Server evaluates fusion model on test embeddings")
-    print("4. ✅ Server computes accuracy using test labels")
-    print("5. 🔒 Server NEVER sees raw images or tabular data")
+    print("1. Clients send embeddings (not raw data) to server")
+    print("2. Server trains fusion model on embeddings")  
+    print("3. Server evaluates fusion model on test embeddings")
+    print("4. Server computes accuracy using test labels")
+    print("5. Server NEVER sees raw images or tabular data")
     print()
     
     try:
         results = evaluate_global_model()
         
         if results:
-            print(f"\n🎉 EVALUATION COMPLETED SUCCESSFULLY!")
-            print(f"   🏆 Final Global Model Accuracy: {results['final_test_accuracy']:.4f} ({results['final_test_accuracy']*100:.2f}%)")
+            print(f"\nEVALUATION COMPLETED SUCCESSFULLY!")
+            print(f"   Final Global Model Accuracy: {results['final_test_accuracy']:.4f} ({results['final_test_accuracy']*100:.2f}%)")
             return 0
         else:
-            print("❌ Evaluation failed")
+            print("Evaluation failed")
             return 1
             
     except Exception as e:
-        print(f"❌ Error during evaluation: {str(e)}")
+        print(f"Error during evaluation: {str(e)}")
         import traceback
         traceback.print_exc()
         return 1

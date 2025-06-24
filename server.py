@@ -18,7 +18,6 @@ from flask_cors import CORS
 import numpy as np
 import tensorflow as tf
 
-# Import existing FL components (preserving all strategies)  
 from network_config import NetworkConfig, APIEndpoints, get_server_config
 from config import get_config, get_current_phase_config, validate_config
 from status import update_training_status
@@ -72,7 +71,7 @@ class FederatedServer:
         # Federated learning state
         self.aggregated_embedding_knowledge = None
         
-        print(f"🌐 Federated Server Initialized")
+        print(f"Federated Server Initialized")
         print(f"   Embedding dimension: {self.embedding_dim}")
         print(f"   Number of classes: {self.num_classes}")
         print(f"   Adversarial lambda: {self.adversarial_lambda}")
@@ -80,9 +79,9 @@ class FederatedServer:
         print(f"   Data percentage: {self.data_percentage*100:.1f}%")
         
         if self.adversarial_lambda == 0.0:
-            print(f"   🔒 Privacy mechanism: DISABLED (Phase 1 - High Performance)")
+            print(f"   Privacy mechanism: DISABLED (Phase 1 - High Performance)")
         else:
-            print(f"   🔒 Privacy mechanism: ENABLED (Lambda={self.adversarial_lambda})")
+            print(f"   Privacy mechanism: ENABLED (Lambda={self.adversarial_lambda})")
     
     def create_models(self, use_advanced_fusion=True, use_step3_enhancements=True):
         """
@@ -92,7 +91,7 @@ class FederatedServer:
             use_advanced_fusion (bool): Whether to use Step 2 advanced fusion
             use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
         """
-        print("🏗️  Creating server models...")
+        print("Creating server models...")
         
         # Create fusion model with optional advanced features
         self.fusion_model, self.adversarial_model = create_fusion_model_with_transformer(
@@ -104,16 +103,16 @@ class FederatedServer:
             use_step3_enhancements=use_step3_enhancements  # STEP 3: Generalization enhancements
         )
         
-        print(f"   ✅ Fusion model created with {self.fusion_model.count_params():,} parameters")
+        print(f"   Fusion model created with {self.fusion_model.count_params():,} parameters")
         
         if self.adversarial_model is not None:
-            print(f"   ⚡ Adversarial model created (λ={self.adversarial_lambda})")
+            print(f"   Adversarial model created (λ={self.adversarial_lambda})")
         else:
-            print(f"   ⚪ Adversarial model disabled (lambda={self.adversarial_lambda})")
+            print(f"   Adversarial model disabled (lambda={self.adversarial_lambda})")
         
         # STEP 2 & 3: Create ensemble models for better robustness
         if use_advanced_fusion or use_step3_enhancements:
-            print("   🎯 Creating ensemble models for enhanced robustness...")
+            print("   Creating ensemble models for enhanced robustness...")
             self.ensemble_models = []
             
             # Create 3 diverse fusion models for ensemble
@@ -132,7 +131,7 @@ class FederatedServer:
                 )
                 self.ensemble_models.append(ensemble_model)
             
-            print(f"   🎯 Created {len(self.ensemble_models)} diverse ensemble models")
+            print(f"   Created {len(self.ensemble_models)} diverse ensemble models")
         else:
             self.ensemble_models = []
     
@@ -147,7 +146,7 @@ class FederatedServer:
         Returns:
             tuple: (image_embeddings, tabular_embeddings, labels, sensitive_attrs)
         """
-        print(f"\n📁 Loading {data_split} embeddings from clients...")
+        print(f"\nLoading {data_split} embeddings from clients...")
         
         # Load image client embeddings
         image_file = f"{embeddings_dir}/image_client_{data_split}_embeddings.pkl"
@@ -165,7 +164,7 @@ class FederatedServer:
         assert np.array_equal(image_data['labels'], tabular_data['labels']), \
             f"Labels mismatch between clients for {data_split} split!"
         
-        print(f"   ✅ Embeddings loaded and verified")
+        print(f"   Embeddings loaded and verified")
         print(f"   - Image embeddings: {image_data['embeddings'].shape}")
         print(f"   - Tabular embeddings: {tabular_data['embeddings'].shape}")
         print(f"   - Samples: {len(image_data['labels'])}")
@@ -177,7 +176,7 @@ class FederatedServer:
 
     def train_vfl_round(self, round_idx, total_rounds, epochs=8, batch_size=16):
         """Train VFL for one round."""
-        print(f"\n🔄 TRAINING ROUND {round_idx + 1}/{total_rounds}")
+        print(f"\nTRAINING ROUND {round_idx + 1}/{total_rounds}")
         print("="*50)
         
         start_time = time.time()
@@ -234,10 +233,10 @@ class FederatedServer:
             self.training_history['round_losses'].append(round_loss)
             self.training_history['training_times'].append(time.time() - start_time)
             
-            print(f"✅ Round {round_idx + 1} complete:")
-            print(f"   🎯 Accuracy: {round_accuracy:.4f}")
-            print(f"   📈 F1: {round_f1:.4f}")
-            print(f"   📉 Loss: {round_loss:.4f}")
+            print(f"Round {round_idx + 1} complete:")
+            print(f"   Accuracy: {round_accuracy:.4f}")
+            print(f"   F1: {round_f1:.4f}")
+            print(f"   Loss: {round_loss:.4f}")
             
             return {
                 'accuracy': round_accuracy,
@@ -247,7 +246,7 @@ class FederatedServer:
             }
             
         except Exception as e:
-            print(f"❌ Round {round_idx + 1} failed: {str(e)}")
+            print(f"Round {round_idx + 1} failed: {str(e)}")
             return {
                 'accuracy': 0.0,
                 'f1_macro': 0.0,
@@ -271,12 +270,12 @@ class FederatedServer:
             
             return {'accuracy': accuracy, 'f1_macro': f1}
         except Exception as e:
-            print(f"⚠️ Evaluation failed: {e}")
+            print(f"Evaluation failed: {e}")
             return {'accuracy': 0.0, 'f1_macro': 0.0}
 
     def evaluate_final_model(self, class_names=None):
         """Final model evaluation."""
-        print(f"\n🏆 FINAL MODEL EVALUATION")
+        print(f"\nFINAL MODEL EVALUATION")
         print("="*40)
         
         try:
@@ -293,12 +292,12 @@ class FederatedServer:
             f1_macro = f1_score(test_labels, predicted_classes, average='macro')
             f1_weighted = f1_score(test_labels, predicted_classes, average='weighted')
             
-            print(f"🎯 Final Test Accuracy: {accuracy:.4f}")
-            print(f"📈 Final Test F1 (macro): {f1_macro:.4f}")
-            print(f"📊 Final Test F1 (weighted): {f1_weighted:.4f}")
+            print(f"Final Test Accuracy: {accuracy:.4f}")
+            print(f"Final Test F1 (macro): {f1_macro:.4f}")
+            print(f"Final Test F1 (weighted): {f1_weighted:.4f}")
             
             if class_names:
-                print(f"\n📋 Classification Report:")
+                print(f"\nClassification Report:")
                 report = classification_report(test_labels, predicted_classes, 
                                              target_names=class_names, output_dict=False)
                 print(report)
@@ -312,7 +311,7 @@ class FederatedServer:
             }
             
         except Exception as e:
-            print(f"⚠️ Final evaluation failed: {e}")
+            print(f"Final evaluation failed: {e}")
             # Return best validation metrics as fallback
             return {
                 'accuracy': self.best_accuracy,
@@ -330,9 +329,9 @@ class FederatedServer:
         try:
             model_path = os.path.join(model_dir, "best_fusion_model.h5")
             self.fusion_model.save_weights(model_path)
-            print(f"💾 Best model saved to {model_path}")
+            print(f"Best model saved to {model_path}")
         except Exception as e:
-            print(f"⚠️ Failed to save model: {e}")
+            print(f"Failed to save model: {e}")
 
 app = Flask(__name__)
 CORS(app)
@@ -368,7 +367,7 @@ guidance_effectiveness = {
 def initialize_server():
     """Initialize the federated server with advanced ML strategies."""
     global federated_server
-    print("🏗️ Initializing Distributed Federated Server...")
+    print("Initializing Distributed Federated Server...")
     
     # Load configurations
     config = get_config()
@@ -389,7 +388,7 @@ def initialize_server():
         use_step3_enhancements=True
     )
     
-    print("✅ Server initialized with advanced ML strategies preserved")
+    print("Server initialized with advanced ML strategies preserved")
 
 def compute_embedding_gradients(embeddings_dict, labels):
     """
@@ -441,7 +440,7 @@ def extract_attention_weights():
                     weights = layer.get_attention_weights()
                     attention_weights[f'layer_{i}'] = weights.numpy()
             except Exception as e:
-                print(f"⚠️ Could not extract attention from layer {i}: {e}")
+                print(f"Could not extract attention from layer {i}: {e}")
     
     return attention_weights
 
@@ -449,7 +448,7 @@ def orchestrate_federated_learning():
     """Main server-driven federated learning orchestration."""
     global auto_shutdown_enabled
     
-    print(f"\n🎯 STARTING SERVER-DRIVEN FEDERATED LEARNING")
+    print(f"\nSTARTING SERVER-DRIVEN FEDERATED LEARNING")
     print("=" * 60)
     
     try:
@@ -457,13 +456,13 @@ def orchestrate_federated_learning():
         fl_config = config['federated_learning']
         total_rounds = fl_config['total_fl_rounds']
         
-        print(f"📊 FL Configuration:")
-        print(f"   🔄 Total rounds: {total_rounds}")
-        print(f"   📈 Epochs per round: {fl_config['client_epochs_per_round']}")
-        print(f"   🎯 Strategy: Fusion-Guided Weight Updates")
+        print(f"FL Configuration:")
+        print(f"   Total rounds: {total_rounds}")
+        print(f"   Epochs per round: {fl_config['client_epochs_per_round']}")
+        print(f"   Strategy: Fusion-Guided Weight Updates")
         
         # Phase 1: Request initial training
-        print(f"\n📚 PHASE 1: REQUESTING INITIAL TRAINING")
+        print(f"\nPHASE 1: REQUESTING INITIAL TRAINING")
         print("=" * 50)
         
         # Request initial training from all clients
@@ -476,16 +475,16 @@ def orchestrate_federated_learning():
         
         # Phase 2: FL Rounds
         for round_idx in range(total_rounds):
-            print(f"\n🔄 FL ROUND {round_idx + 1}/{total_rounds}")
+            print(f"\nFL ROUND {round_idx + 1}/{total_rounds}")
             print("=" * 50)
             
             # Train global fusion model
-            print(f"🧠 Training global fusion model with current embeddings...")
+            print(f"Training global fusion model with current embeddings...")
             train_global_model_round(round_idx)
             
             # Request next round embeddings (if not final round)
             if round_idx < total_rounds - 1:
-                print(f"📤 Requesting Round {round_idx + 2} embeddings with guidance...")
+                print(f"Requesting Round {round_idx + 2} embeddings with guidance...")
                 
                 # Send guidance and request fresh embeddings
                 for client_id, client_info in registered_clients.items():
@@ -496,7 +495,7 @@ def orchestrate_federated_learning():
                 wait_for_all_clients_to_complete(f'round_{round_idx + 1}_training')
         
         # Phase 3: Final evaluation
-        print(f"\n🏆 PHASE 3: FINAL EVALUATION")
+        print(f"\nPHASE 3: FINAL EVALUATION")
         print("=" * 40)
         
         # Use class names from config since server doesn't have data_loader
@@ -504,11 +503,11 @@ def orchestrate_federated_learning():
         class_names = config['data']['class_names']
         final_results = federated_server.evaluate_final_model(class_names=class_names)
         
-        print(f"\n🎉 DISTRIBUTED FL FINAL RESULTS:")
-        print(f"   🎯 Global Model Test Accuracy: {final_results.get('accuracy', 0.0):.4f} ({final_results.get('accuracy', 0.0)*100:.2f}%)")
-        print(f"   📈 Global Model Test F1: {final_results.get('f1_macro', 0.0):.4f}")
-        print(f"   🔄 Total FL Rounds: {total_rounds}")
-        print(f"   👥 Participating Clients: {len(registered_clients)}")
+        print(f"\nDISTRIBUTED FL FINAL RESULTS:")
+        print(f"   Global Model Test Accuracy: {final_results.get('accuracy', 0.0):.4f} ({final_results.get('accuracy', 0.0)*100:.2f}%)")
+        print(f"   Global Model Test F1: {final_results.get('f1_macro', 0.0):.4f}")
+        print(f"   Total FL Rounds: {total_rounds}")
+        print(f"   Participating Clients: {len(registered_clients)}")
         
         # Save final results
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -527,26 +526,26 @@ def orchestrate_federated_learning():
         with open(results_file, 'w') as f:
             json.dump(final_summary, f, indent=2)
         
-        print(f"   💾 Results saved to {results_file}")
+        print(f"   Results saved to {results_file}")
         
         # Phase 4: Signal completion to clients
-        print(f"\n📢 SIGNALING COMPLETION TO ALL CLIENTS")
+        print(f"\nSIGNALING COMPLETION TO ALL CLIENTS")
         print("=" * 40)
         
         for client_id, client_info in registered_clients.items():
             client_info['current_task'] = 'completed'
-            print(f"   ✅ Signaled completion to client {client_id}")
+            print(f"   Signaled completion to client {client_id}")
         
         # Schedule server shutdown
         if auto_shutdown_enabled:
-            print(f"\n🔄 FEDERATED LEARNING COMPLETED!")
-            print(f"🛑 Server will shutdown in 10 seconds...")
-            print(f"✅ All processes finished successfully!")
+            print(f"\nFEDERATED LEARNING COMPLETED!")
+            print(f"Server will shutdown in 10 seconds...")
+            print(f"All processes finished successfully!")
             
             def shutdown_server():
                 time.sleep(10)
-                print(f"\n🛑 Shutting down server...")
-                print(f"🏁 All terminals ready for new commands!")
+                print(f"\nShutting down server...")
+                print(f"All terminals ready for new commands!")
                 os._exit(0)
             
             shutdown_thread = threading.Thread(target=shutdown_server)
@@ -554,13 +553,13 @@ def orchestrate_federated_learning():
             shutdown_thread.start()
         
     except Exception as e:
-        print(f"❌ FL Orchestration error: {str(e)}")
+        print(f"FL Orchestration error: {str(e)}")
         import traceback
         traceback.print_exc()
 
 def wait_for_all_clients_to_complete(task_name):
     """Wait for all clients to complete a specific task."""
-    print(f"⏳ Waiting for all clients to complete: {task_name}")
+    print(f"Waiting for all clients to complete: {task_name}")
     
     max_wait_time = 1800  # 30 minutes max
     start_time = time.time()
@@ -580,15 +579,15 @@ def wait_for_all_clients_to_complete(task_name):
                 completed_count += 1
         
         total_clients = len(registered_clients)
-        print(f"   📊 Progress: {completed_count}/{total_clients} clients completed {task_name}")
+        print(f"   Progress: {completed_count}/{total_clients} clients completed {task_name}")
         
         if all_completed:
-            print(f"   ✅ All clients completed {task_name}!")
+            print(f"   All clients completed {task_name}!")
             return True
         
         time.sleep(5)
     
-    print(f"   ❌ Timeout waiting for {task_name} after 30 minutes")
+    print(f"   Timeout waiting for {task_name} after 30 minutes")
     return False
 
 def train_global_model_round(round_idx):
@@ -613,15 +612,15 @@ def train_global_model_round(round_idx):
         # Evaluate performance
         val_results = federated_server.evaluate_global_model(round_idx)
         
-        print(f"   🎯 Round {round_idx + 1} Results:")
-        print(f"   📊 Accuracy: {val_results['accuracy']:.4f}")
-        print(f"   📈 F1 Score: {val_results['f1_score']:.4f}")
-        print(f"   📉 Loss: {round_results.get('loss', 0.0):.4f}")
+        print(f"   Round {round_idx + 1} Results:")
+        print(f"   Accuracy: {val_results['accuracy']:.4f}")
+        print(f"   F1 Score: {val_results['f1_score']:.4f}")
+        print(f"   Loss: {round_results.get('loss', 0.0):.4f}")
         
         return round_results
         
     except Exception as e:
-        print(f"   ❌ Error training global model: {e}")
+        print(f"   Error training global model: {e}")
         return None
 
 @app.route('/health', methods=['GET'])
@@ -658,12 +657,12 @@ def register_client():
         'current_task': 'idle'
     }
     
-    print(f"✅ Registered {client_type} client: {client_id}")
+    print(f"Registered {client_type} client: {client_id}")
     
     # Check if we have enough clients to start FL
     required_clients = 2  # image + tabular
     if len(registered_clients) >= required_clients and not fl_orchestration_active:
-        print(f"\n🚀 SUFFICIENT CLIENTS REGISTERED - STARTING FL ORCHESTRATION")
+        print(f"\nSUFFICIENT CLIENTS REGISTERED - STARTING FL ORCHESTRATION")
         fl_orchestration_active = True
         fl_orchestration_thread = threading.Thread(target=orchestrate_federated_learning)
         fl_orchestration_thread.daemon = True
@@ -715,8 +714,8 @@ def send_global_guidance():
         completed_clients = len(clients_completed_current_round)
         
         if completed_clients < total_clients:
-            print(f"⏳ Client {client_id} waiting for round synchronization")
-            print(f"   📊 Round {current_global_round + 1}: {completed_clients}/{total_clients} clients completed")
+            print(f"Client {client_id} waiting for round synchronization")
+            print(f"   Round {current_global_round + 1}: {completed_clients}/{total_clients} clients completed")
             return jsonify({
                 'error': 'round_not_ready',
                 'message': f'Waiting for all clients to complete round {current_global_round + 1}',
@@ -729,8 +728,8 @@ def send_global_guidance():
             # All clients completed - advance to next round
             current_global_round += 1
             clients_completed_current_round = set()
-            print(f"🚀 ADVANCING TO GLOBAL ROUND {current_global_round + 1}")
-            print(f"   📊 All {total_clients} clients synchronized")
+            print(f"ADVANCING TO GLOBAL ROUND {current_global_round + 1}")
+            print(f"   All {total_clients} clients synchronized")
     
     try:
         # Load current embeddings to compute gradients
@@ -783,19 +782,19 @@ def send_global_guidance():
             if accuracy_trend < -0.01:  # Client degraded significantly (>1%)
                 adaptive_lr_multiplier *= 0.5  # Reduce learning rate
                 guidance_effectiveness['adaptive_lr_adjustments'] += 1
-                print(f"   🔧 Reducing LR multiplier to {adaptive_lr_multiplier:.3f} due to client degradation")
+                print(f"   Reducing LR multiplier to {adaptive_lr_multiplier:.3f} due to client degradation")
             elif accuracy_trend > 0.01:  # Client improved significantly (>1%)
                 adaptive_lr_multiplier *= 1.2  # Slightly increase learning rate
                 adaptive_lr_multiplier = min(adaptive_lr_multiplier, 1.0)  # Cap at 1.0
                 guidance_effectiveness['adaptive_lr_adjustments'] += 1
-                print(f"   🔧 Increasing LR multiplier to {adaptive_lr_multiplier:.3f} due to client improvement")
+                print(f"   Increasing LR multiplier to {adaptive_lr_multiplier:.3f} due to client improvement")
         
         # GRADIENT QUALITY CHECK
         if gradient_norm < 1e-6:  # Very small gradients
-            print(f"   ⚠️  Warning: Very small gradient norm ({gradient_norm:.2e}) - guidance may be ineffective")
+            print(f"   Warning: Very small gradient norm ({gradient_norm:.2e}) - guidance may be ineffective")
             # Option: Skip guidance or use default values
             if guidance_effectiveness['improvement_rate'] < 0.3:  # If effectiveness is low
-                print(f"   🚫 Skipping guidance due to low effectiveness ({guidance_effectiveness['improvement_rate']:.2%})")
+                print(f"   Skipping guidance due to low effectiveness ({guidance_effectiveness['improvement_rate']:.2%})")
                 guidance_effectiveness['rejected_guidance_count'] += 1
                 return jsonify({
                     'guidance_skipped': True,
@@ -826,15 +825,15 @@ def send_global_guidance():
             'timestamp': time.time()
         }
         
-        print(f"📤 Sent guidance to {client_type} client {client_id} for round {current_round + 1}")
-        print(f"   📊 Gradient norm: {gradient_norm:.4f}")
-        print(f"   📈 Fusion loss: {gradient_info['loss_value']:.4f}")
-        print(f"   🎯 Adaptive LR multiplier: {adaptive_lr_multiplier:.3f}")
+        print(f"Sent guidance to {client_type} client {client_id} for round {current_round + 1}")
+        print(f"   Gradient norm: {gradient_norm:.4f}")
+        print(f"   Fusion loss: {gradient_info['loss_value']:.4f}")
+        print(f"   Adaptive LR multiplier: {adaptive_lr_multiplier:.3f}")
         
         return jsonify(guidance)
         
     except Exception as e:
-        print(f"❌ Error generating guidance for {client_id}: {str(e)}")
+        print(f"Error generating guidance for {client_id}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/collect_fresh_embeddings', methods=['POST'])
@@ -868,10 +867,10 @@ def collect_fresh_embeddings():
     
     client_type = registered_clients[client_id]['client_type']
     
-    print(f"📥 Received fresh embeddings from {client_type} client {client_id}")
-    print(f"   🎯 Client accuracy: {performance_metrics.get('accuracy', 0.0):.4f}")
-    print(f"   📉 Client loss: {performance_metrics.get('loss', 0.0):.4f}")
-    print(f"   📊 Round {current_round + 1} progress: {len(clients_completed_current_round)}/{len(registered_clients)} clients completed")
+    print(f"Received fresh embeddings from {client_type} client {client_id}")
+    print(f"   Client accuracy: {performance_metrics.get('accuracy', 0.0):.4f}")
+    print(f"   Client loss: {performance_metrics.get('loss', 0.0):.4f}")
+    print(f"   Round {current_round + 1} progress: {len(clients_completed_current_round)}/{len(registered_clients)} clients completed")
     
     # Check if this is the final round and all clients have completed
     config = get_config()
@@ -887,16 +886,16 @@ def collect_fresh_embeddings():
                 break
         
         if all_clients_completed:
-            print(f"\n🎯 ALL CLIENTS COMPLETED FL ROUNDS - TRIGGERING FINAL EVALUATION")
+            print(f"\nALL CLIENTS COMPLETED FL ROUNDS - TRIGGERING FINAL EVALUATION")
             try:
                 # Trigger final evaluation automatically
                 final_results = federated_server.evaluate_final_model()
                 
-                print(f"\n🏆 DISTRIBUTED FL FINAL RESULTS:")
-                print(f"   🎯 Global Model Test Accuracy: {final_results.get('accuracy', 0.0):.4f} ({final_results.get('accuracy', 0.0)*100:.2f}%)")
-                print(f"   📈 Global Model Test F1: {final_results.get('f1_macro', 0.0):.4f}")
-                print(f"   🔄 Total FL Rounds: {final_round}")
-                print(f"   👥 Participating Clients: {len(registered_clients)}")
+                print(f"\nDISTRIBUTED FL FINAL RESULTS:")
+                print(f"   Global Model Test Accuracy: {final_results.get('accuracy', 0.0):.4f} ({final_results.get('accuracy', 0.0)*100:.2f}%)")
+                print(f"   Global Model Test F1: {final_results.get('f1_macro', 0.0):.4f}")
+                print(f"   Total FL Rounds: {final_round}")
+                print(f"   Participating Clients: {len(registered_clients)}")
                 
                 # Save final results
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -915,47 +914,47 @@ def collect_fresh_embeddings():
                 with open(results_file, 'w') as f:
                     json.dump(final_summary, f, indent=2)
                 
-                print(f"   💾 Results saved to {results_file}")
+                print(f"   Results saved to {results_file}")
                 
                 # Schedule automatic server shutdown if enabled
                 if auto_shutdown_enabled:
-                    print(f"\n🔄 FEDERATED LEARNING COMPLETED!")
-                    print(f"🛑 Server will shutdown in 10 seconds...")
-                    print(f"✅ All processes finished successfully!")
+                    print(f"\nFEDERATED LEARNING COMPLETED!")
+                    print(f"Server will shutdown in 10 seconds...")
+                    print(f"All processes finished successfully!")
                     
                     # Schedule shutdown after delay to allow final response
                     import threading
                     def shutdown_server():
                         time.sleep(10)  # Give time for final response
-                        print(f"\n🛑 Shutting down server...")
-                        print(f"🏁 Terminal is ready for new commands!")
+                        print(f"\nShutting down server...")
+                        print(f"Terminal is ready for new commands!")
                         os._exit(0)  # Force exit
                     
                     shutdown_thread = threading.Thread(target=shutdown_server)
                     shutdown_thread.daemon = True
                     shutdown_thread.start()
                 else:
-                    print(f"\n🔄 FEDERATED LEARNING COMPLETED!")
-                    print(f"✅ All processes finished successfully!")
-                    print(f"🔄 Server will continue running for additional requests...")
+                    print(f"\nFEDERATED LEARNING COMPLETED!")
+                    print(f"All processes finished successfully!")
+                    print(f"Server will continue running for additional requests...")
                 
             except Exception as e:
-                print(f"❌ Error in automatic final evaluation: {str(e)}")
+                print(f"Error in automatic final evaluation: {str(e)}")
                 # Still shutdown on error if enabled
                 if auto_shutdown_enabled:
-                    print(f"🛑 Server will shutdown in 5 seconds due to error...")
+                    print(f"Server will shutdown in 5 seconds due to error...")
                     import threading
                     def shutdown_server():
                         time.sleep(5)
-                        print(f"\n🛑 Shutting down server...")
-                        print(f"🏁 Terminal is ready for new commands!")
+                        print(f"\nShutting down server...")
+                        print(f"Terminal is ready for new commands!")
                         os._exit(0)
                     
                     shutdown_thread = threading.Thread(target=shutdown_server)
                     shutdown_thread.daemon = True
                     shutdown_thread.start()
                 else:
-                    print(f"❌ Error occurred, but server will continue running...")
+                    print(f"Error occurred, but server will continue running...")
     
     return jsonify({
         'status': 'embeddings_received',
@@ -972,14 +971,14 @@ def run_fl_round():
     config = get_config()
     fl_config = config['federated_learning']
     
-    print(f"\n🚀 DISTRIBUTED FL ROUND {round_idx + 1}/{fl_config['total_fl_rounds']}")
+    print(f"\nDISTRIBUTED FL ROUND {round_idx + 1}/{fl_config['total_fl_rounds']}")
     print("=" * 60)
     
     round_start_time = time.time()
     
     try:
         # Step 1: Load current embeddings and train fusion model
-        print("📊 Loading embeddings and training fusion model...")
+        print("Loading embeddings and training fusion model...")
         
         train_image_emb, train_tabular_emb, train_labels, train_sensitive = \
             federated_server.load_client_embeddings('train')
@@ -1037,12 +1036,12 @@ def run_fl_round():
         if fl_config['save_round_models']:
             federated_server.save_best_model(f"models/round_{round_idx + 1}")
         
-        print(f"\n📊 ROUND {round_idx + 1} RESULTS:")
-        print(f"   🎯 Validation Accuracy: {current_accuracy:.4f}")
-        print(f"   📈 Validation F1: {current_f1:.4f}")
-        print(f"   📊 Improvement: {improvement:+.4f}")
-        print(f"   ⏱️  Round Time: {round_time:.1f}s")
-        print(f"   👥 Active Clients: {len(registered_clients)}")
+        print(f"\nROUND {round_idx + 1} RESULTS:")
+        print(f"   Validation Accuracy: {current_accuracy:.4f}")
+        print(f"   Validation F1: {current_f1:.4f}")
+        print(f"   Improvement: {improvement:+.4f}")
+        print(f"   Round Time: {round_time:.1f}s")
+        print(f"   Active Clients: {len(registered_clients)}")
         
         return jsonify({
             'status': 'round_completed',
@@ -1052,14 +1051,14 @@ def run_fl_round():
         })
         
     except Exception as e:
-        print(f"❌ Error in FL round {round_idx + 1}: {str(e)}")
+        print(f"Error in FL round {round_idx + 1}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/get_final_results', methods=['GET'])
 def get_final_results():
     """Get final federated learning results and evaluation."""
     try:
-        print("\n🏁 FINAL DISTRIBUTED FL EVALUATION")
+        print("\nFINAL DISTRIBUTED FL EVALUATION")
         print("=" * 50)
         
         # Final evaluation
@@ -1099,14 +1098,14 @@ def get_final_results():
         with open(results_file, 'w') as f:
             json.dump(results, f, indent=2)
         
-        print(f"💾 Results saved to {results_file}")
-        print(f"🎉 Final Test Accuracy: {final_results.get('accuracy', 0.0):.4f}")
-        print(f"📈 Final Test F1: {final_results.get('f1_macro', 0.0):.4f}")
+        print(f"Results saved to {results_file}")
+        print(f"Final Test Accuracy: {final_results.get('accuracy', 0.0):.4f}")
+        print(f"Final Test F1: {final_results.get('f1_macro', 0.0):.4f}")
         
         return jsonify(results)
         
     except Exception as e:
-        print(f"❌ Error in final evaluation: {str(e)}")
+        print(f"Error in final evaluation: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/get_server_status', methods=['GET'])
@@ -1132,7 +1131,7 @@ def request_client_embeddings():
     if client_id not in registered_clients:
         return jsonify({'error': 'Client not registered'}), 400
     
-    print(f"📤 Requesting {embedding_type} embeddings from client {client_id} for round {round_idx + 1}")
+    print(f"Requesting {embedding_type} embeddings from client {client_id} for round {round_idx + 1}")
     
     # This endpoint just confirms the request
     # Clients will need to poll for this request
@@ -1154,7 +1153,7 @@ def signal_fl_complete():
     if client_id not in registered_clients:
         return jsonify({'error': 'Client not registered'}), 400
     
-    print(f"📢 Signaling FL completion to client {client_id}")
+    print(f"Signaling FL completion to client {client_id}")
     
     return jsonify({
         'status': 'fl_complete',
@@ -1237,7 +1236,7 @@ def client_task_completed():
         round_num = int(completed_task.split('_')[1])
         if round_num == current_global_round + 1:  # Completing current round
             clients_completed_current_round.add(client_id)
-            print(f"   🔄 Client {client_id} completed round {round_num}: {len(clients_completed_current_round)}/{len(registered_clients)} clients done")
+            print(f"   Client {client_id} completed round {round_num}: {len(clients_completed_current_round)}/{len(registered_clients)} clients done")
     
     # Add to performance history
     if 'performance_history' not in client_info:
@@ -1256,10 +1255,10 @@ def client_task_completed():
         
         if accuracy_change > 0.001:  # Improved by more than 0.1%
             guidance_effectiveness['client_improvements'] += 1
-            print(f"   📈 Client improved by {accuracy_change:.4f} after guidance")
+            print(f"   Client improved by {accuracy_change:.4f} after guidance")
         elif accuracy_change < -0.001:  # Degraded by more than 0.1%
             guidance_effectiveness['client_degradations'] += 1
-            print(f"   📉 Client degraded by {abs(accuracy_change):.4f} after guidance")
+            print(f"   Client degraded by {abs(accuracy_change):.4f} after guidance")
         
         # Update improvement rate
         total_guided = guidance_effectiveness['client_improvements'] + guidance_effectiveness['client_degradations']
@@ -1267,12 +1266,12 @@ def client_task_completed():
             guidance_effectiveness['improvement_rate'] = guidance_effectiveness['client_improvements'] / total_guided
     
     client_type = client_info['client_type']
-    print(f"✅ Client {client_id} ({client_type}) completed task: {completed_task}")
-    print(f"   🎯 Accuracy: {current_accuracy:.4f}")
+    print(f"Client {client_id} ({client_type}) completed task: {completed_task}")
+    print(f"   Accuracy: {current_accuracy:.4f}")
     
     # Print guidance effectiveness summary
     if guidance_effectiveness['total_guidance_sent'] > 0:
-        print(f"   📊 Guidance Effectiveness: {guidance_effectiveness['improvement_rate']:.2%} improvement rate")
+        print(f"   Guidance Effectiveness: {guidance_effectiveness['improvement_rate']:.2%} improvement rate")
     
     return jsonify({
         'status': 'task_completed_acknowledged',
@@ -1304,19 +1303,19 @@ def main():
     host = args.host or server_config['host']
     port = args.port or server_config['port']
     
-    print(f"🚀 Starting Distributed FL Server in {args.mode} mode")
-    print(f"📡 Server: http://{host}:{port}")
-    print(f"🧠 Strategy: Fusion-Guided Weight Updates")
+    print(f"Starting Distributed FL Server in {args.mode} mode")
+    print(f"Server: http://{host}:{port}")
+    print(f"Strategy: Fusion-Guided Weight Updates")
     
     # Show shutdown configuration
     if auto_shutdown_enabled:
         # Get FL rounds from config
         config = get_config()
         fl_rounds = config['federated_learning']['total_fl_rounds']
-        print(f"🔄 Auto-shutdown: ENABLED (after {fl_rounds} FL rounds)")
-        print(f"💡 Use --no-auto-shutdown to keep server running")
+        print(f"Auto-shutdown: ENABLED (after {fl_rounds} FL rounds)")
+        print(f"Use --no-auto-shutdown to keep server running")
     else:
-        print(f"🔄 Auto-shutdown: DISABLED (server will keep running)")
+        print(f"Auto-shutdown: DISABLED (server will keep running)")
     
     # Initialize server
     initialize_server()

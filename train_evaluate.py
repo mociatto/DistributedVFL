@@ -162,7 +162,7 @@ def train_client_model(model, train_generator, val_data, epochs=10, steps_per_ep
     # Progress callback for better tracking
     class ProgressCallback(tf.keras.callbacks.Callback):
         def on_epoch_begin(self, epoch, logs=None):
-            print(f"      🔄 Epoch {epoch + 1}/{epochs} starting...")
+            print(f"      Epoch {epoch + 1}/{epochs} starting...")
         
         def on_epoch_end(self, epoch, logs=None):
             if logs:
@@ -170,7 +170,7 @@ def train_client_model(model, train_generator, val_data, epochs=10, steps_per_ep
                 val_acc = logs.get('val_accuracy', 0)
                 loss = logs.get('loss', 0)
                 val_loss = logs.get('val_loss', 0)
-                print(f"      ✅ Epoch {epoch + 1}/{epochs}: acc={acc:.4f}, val_acc={val_acc:.4f}, loss={loss:.4f}, val_loss={val_loss:.4f}")
+                print(f"      Epoch {epoch + 1}/{epochs}: acc={acc:.4f}, val_acc={val_acc:.4f}, loss={loss:.4f}, val_loss={val_loss:.4f}")
     
     if verbose > 1:
         callbacks.append(ProgressCallback())
@@ -421,7 +421,7 @@ def evaluate_fusion_model(fusion_model, image_embeddings, tabular_embeddings, la
                 print("Confusion matrix saved as 'confusion_matrix_fusion.png'")
         except Exception as e:
             if verbose > 0:
-                print(f"⚠️ Could not save confusion matrix: {e}")
+                print(f"Could not save confusion matrix: {e}")
     
     return {
         'accuracy': accuracy,
@@ -531,28 +531,28 @@ def suggest_regularization_improvements(gap_percentage):
     
     if gap_percentage > 40:
         suggestions.extend([
-            "🔥 CRITICAL: Increase dropout to 0.7-0.8",
-            "🔥 CRITICAL: Increase L2 regularization to 0.1",
-            "🔥 CRITICAL: Reduce model complexity (fewer layers/units)",
-            "🔥 CRITICAL: Use stronger data augmentation",
-            "🔥 CRITICAL: Implement early stopping with patience=1"
+            "CRITICAL: Increase dropout to 0.7-0.8",
+            "CRITICAL: Increase L2 regularization to 0.1",
+            "CRITICAL: Reduce model complexity (fewer layers/units)",
+            "CRITICAL: Use stronger data augmentation",
+            "CRITICAL: Implement early stopping with patience=1"
         ])
     elif gap_percentage > 25:
         suggestions.extend([
-            "⚠️  HIGH: Increase dropout to 0.6-0.7",
-            "⚠️  HIGH: Increase L2 regularization to 0.01-0.05",
-            "⚠️  HIGH: Use mixup augmentation from epoch 1",
-            "⚠️  HIGH: Reduce learning rate by 50%"
+            "HIGH: Increase dropout to 0.6-0.7",
+            "HIGH: Increase L2 regularization to 0.01-0.05",
+            "HIGH: Use mixup augmentation from epoch 1",
+            "HIGH: Reduce learning rate by 50%"
         ])
     elif gap_percentage > 15:
         suggestions.extend([
-            "📊 MODERATE: Increase dropout to 0.5-0.6",
-            "📊 MODERATE: Increase L2 regularization to 0.005-0.01",
-            "📊 MODERATE: Use label smoothing",
-            "📊 MODERATE: Implement gradient clipping"
+            "MODERATE: Increase dropout to 0.5-0.6",
+            "MODERATE: Increase L2 regularization to 0.005-0.01",
+            "MODERATE: Use label smoothing",
+            "MODERATE: Implement gradient clipping"
         ])
     else:
-        suggestions.append("✅ GOOD: Model generalization is acceptable")
+        suggestions.append("GOOD: Model generalization is acceptable")
     
     return suggestions
 

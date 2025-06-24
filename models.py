@@ -176,7 +176,7 @@ def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128, use_step3
     # STEP 3: Add noise injection for better generalization
     if use_step3_enhancements:
         x = NoiseInjection(noise_stddev=0.05)(inputs)
-        print("   🔄 Step 3: Noise injection enabled for image encoder")
+        print("   Step 3: Noise injection enabled for image encoder")
     else:
         x = inputs
     
@@ -185,7 +185,7 @@ def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128, use_step3
     # ========================================
     
     if use_lightweight:
-        print("   🚀 MEMORY-OPTIMIZED: Using EfficientNetB0 backbone (5M parameters)")
+        print("   MEMORY-OPTIMIZED: Using EfficientNetB0 backbone (5M parameters)")
         backbone = EfficientNetB0(
             weights='imagenet',  # Pre-trained weights
             include_top=False,   # Remove final classification layer
@@ -194,7 +194,7 @@ def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128, use_step3
         )
         backbone_output_dim = 1280  # EfficientNetB0 output dimension
     else:
-        print("   🚀 FULL-SCALE: Using EfficientNetV2-S backbone (21M parameters)")
+        print("   FULL-SCALE: Using EfficientNetV2-S backbone (21M parameters)")
         backbone = EfficientNetV2S(
             weights='imagenet',  # Pre-trained weights
             include_top=False,   # Remove final classification layer
@@ -214,7 +214,7 @@ def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128, use_step3
         layer.trainable = False
     
     model_name = "EfficientNetB0" if use_lightweight else "EfficientNetV2-S"
-    print(f"   📊 {model_name}: {total_layers} layers, freezing first {freeze_until} layers")
+    print(f"   {model_name}: {total_layers} layers, freezing first {freeze_until} layers")
     
     # Get features from backbone
     backbone_features = backbone(x)
@@ -249,8 +249,8 @@ def create_image_encoder(input_shape=(224, 224, 3), embedding_dim=128, use_step3
     
     enhancement_note = " (Step 3 enhanced)" if use_step3_enhancements else ""
     memory_note = " [LIGHTWEIGHT]" if use_lightweight else " [FULL-SCALE]"
-    print(f"   🖼️  {model_name} encoder{enhancement_note}{memory_note}: {model.count_params():,} parameters")
-    print(f"   🎯 Transfer Learning: Pre-trained on ImageNet, fine-tuning enabled")
+    print(f"   {model_name} encoder{enhancement_note}{memory_note}: {model.count_params():,} parameters")
+    print(f"   Transfer Learning: Pre-trained on ImageNet, fine-tuning enabled")
     return model
 
 
@@ -274,7 +274,7 @@ def create_tabular_encoder(input_dim, embedding_dim=128, use_step3_enhancements=
     # STEP 3: Add noise injection for tabular features
     if use_step3_enhancements:
         x = NoiseInjection(noise_stddev=0.05)(x)
-        print("   🔄 Step 3: Noise injection enabled for tabular encoder")
+        print("   Step 3: Noise injection enabled for tabular encoder")
     
     # Progressive feature expansion with residual connections
     # Layer 1 - Feature expansion
@@ -316,7 +316,7 @@ def create_tabular_encoder(input_dim, embedding_dim=128, use_step3_enhancements=
     model = Model(inputs=inputs, outputs=embeddings, name='tabular_encoder')
     
     enhancement_note = " (Step 3 enhanced)" if use_step3_enhancements else ""
-    print(f"   📊 Tabular encoder{enhancement_note}: {model.count_params():,} parameters")
+    print(f"   Tabular encoder{enhancement_note}: {model.count_params():,} parameters")
     return model
 
 
@@ -347,13 +347,13 @@ def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128,
     
     # STEP 3: Add noise injection to embeddings for better generalization
     if use_step3_enhancements:
-        print("   🔄 Step 3: Embedding noise injection enabled")
+        print("   Step 3: Embedding noise injection enabled")
         image_norm = NoiseInjection(noise_stddev=0.05)(image_norm)
         tabular_norm = NoiseInjection(noise_stddev=0.05)(tabular_norm)
     
     if use_advanced_fusion:
         # STEP 2: Advanced Transformer-based Cross-Modal Fusion
-        print("   🔄 Using advanced transformer fusion (Step 2)")
+        print("   Using advanced transformer fusion (Step 2)")
         
         # Cross-modal attention mechanism
         # Expand dimensions for attention computation using Keras layers
@@ -413,7 +413,7 @@ def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128,
         
     else:
         # STEP 1: Simple but effective multimodal fusion with concatenation
-        print("   🔄 Using simple concatenation fusion (Step 1)")
+        print("   Using simple concatenation fusion (Step 1)")
         fused_features = Concatenate()([image_norm, tabular_norm])
         
         # Feature processing with proper regularization
@@ -452,7 +452,7 @@ def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128,
     # Create fusion model
     if use_step3_enhancements:
         model_name = 'step3_enhanced_fusion_model'
-        print("   🔄 Step 3: Enhanced fusion model with advanced regularization")
+        print("   Step 3: Enhanced fusion model with advanced regularization")
     elif use_advanced_fusion:
         model_name = 'advanced_fusion_model'
     else:
@@ -478,15 +478,15 @@ def create_fusion_model_with_transformer(image_dim=128, tabular_dim=128,
         enhancement_notes.append("Step 3 generalization")
     
     note_str = f" ({', '.join(enhancement_notes)})" if enhancement_notes else ""
-    print(f"   🔄 Enhanced fusion model{note_str}: {fusion_model.count_params():,} parameters")
+    print(f"   Enhanced fusion model{note_str}: {fusion_model.count_params():,} parameters")
     
     # Adversarial model (disabled for now)
     adversarial_model = None
     if adversarial_lambda > 0:
-        print(f"   ⚡ Adversarial training enabled (λ={adversarial_lambda})")
+        print(f"   Adversarial training enabled (λ={adversarial_lambda})")
         # Implementation would go here
     else:
-        print(f"   ⚪ Adversarial training disabled")
+        print(f"   Adversarial training disabled")
     
     return fusion_model, adversarial_model
 

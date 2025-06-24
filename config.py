@@ -399,8 +399,8 @@ def update_config(section, key, value):
 # Validate configuration on import
 if __name__ == "__main__":
     validate_config()
-    print("✅ Configuration validation passed")
-    print(f"📊 Current Phase: {PHASE_CONFIG['current_phase']} - {PHASE_CONFIG['phase_name']}")
-    print(f"📈 Step: {PHASE_CONFIG['step']} - {PHASE_CONFIG['step_name']}")
+    print("Configuration validation passed")
+    print(f"Current Phase: {PHASE_CONFIG['current_phase']} - {PHASE_CONFIG['phase_name']}")
+    print(f"Step: {PHASE_CONFIG['step']} - {PHASE_CONFIG['step_name']}")
 else:
     validate_config() 
