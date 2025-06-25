@@ -561,7 +561,7 @@ def kill_process_on_port(port=5050):
                         subprocess.run(['kill', '-9', pid], timeout=5)
                         print(f"Process {pid} killed successfully")
             else:
-                print(f"✅ No existing process found on port {port}")
+                print(f"No existing process found on port {port}")
         except subprocess.TimeoutExpired:
             print(f"Timeout while checking port {port}")
         except FileNotFoundError:

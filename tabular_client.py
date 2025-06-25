@@ -330,7 +330,7 @@ class DistributedTabularClient:
             
             if response.status_code == 200:
                 self.fl_config = response.json()
-                print(f"📥 Received FL config:")
+                print(f"Received FL config:")
                 print(f"   Rounds: {self.fl_config['total_fl_rounds']}")
                 print(f"   Epochs per round: {self.fl_config['client_epochs_per_round']}")
                 print(f"   Learning rate multiplier: {self.fl_config['client_learning_rate_multiplier']}")

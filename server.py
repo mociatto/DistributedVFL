@@ -109,12 +109,12 @@ class FederatedServer:
         
         # Dynamic lambda system info - ONLY show if enabled
         if self.dynamic_lambda_enabled:
-            print(f"   🎯 Dynamic Lambda System: ENABLED")
-            print(f"   📊 Strategy: {self.lambda_adjustment_strategy}")
-            print(f"   🎛️ Target age leakage: {self.lambda_pid['target_age_leakage']:.1f}%")
-            print(f"   🎛️ Target gender leakage: {self.lambda_pid['target_gender_leakage']:.1f}%")
+            print(f"   Dynamic Lambda System: ENABLED")
+            print(f"   Strategy: {self.lambda_adjustment_strategy}")
+            print(f"   Target age leakage: {self.lambda_pid['target_age_leakage']:.1f}%")
+            print(f"   Target gender leakage: {self.lambda_pid['target_gender_leakage']:.1f}%")
         else:
-            print(f"   🎯 Dynamic Lambda System: DISABLED (controlled by dashboard)")
+            print(f"   Dynamic Lambda System: DISABLED (controlled by dashboard)")
         
         # Create inference attack models
         self.create_inference_models()
@@ -433,7 +433,7 @@ class FederatedServer:
             val_image_emb, val_tabular_emb, val_labels, val_sensitive_attrs = self.load_client_embeddings('val')
             
             if train_image_emb is None or train_tabular_emb is None:
-                print("     ⚠️ Warning: Could not load embeddings for inference attacks")
+                print("     Warning: Could not load embeddings for inference attacks")
                 return {
                     'age_leakage': 16.67,  # Random baseline
                     'gender_leakage': 50.0,  # Random baseline
@@ -446,15 +446,15 @@ class FederatedServer:
             
             # Apply adversarial defense if lambda > 0 (ONLY when actually enabled)
             if self.adversarial_lambda > 0:
-                print(f"     🛡️ Applying adversarial defense (λ={self.adversarial_lambda:.3f}) to embeddings...")
+                print(f"     Applying adversarial defense (λ={self.adversarial_lambda:.3f}) to embeddings...")
                 train_combined = self._apply_adversarial_defense(train_combined, self.adversarial_lambda)
                 val_combined = self._apply_adversarial_defense(val_combined, self.adversarial_lambda)
             else:
-                print(f"     🔓 No adversarial defense - embeddings vulnerable to inference attacks")
+                print(f"     No adversarial defense - embeddings vulnerable to inference attacks")
             
             # Extract sensitive attributes - FIXED: Handle numpy array correctly
             if train_sensitive_attrs is None or val_sensitive_attrs is None:
-                print("     ⚠️ Warning: Sensitive attributes not available")
+                print("     Warning: Sensitive attributes not available")
                 return {
                     'age_leakage': 16.67,  # Random baseline
                     'gender_leakage': 50.0,  # Random baseline  
@@ -501,16 +501,16 @@ class FederatedServer:
             
             # ONLY update dynamic lambda if the system is ENABLED
             if self.dynamic_lambda_enabled:
-                print(f"   🎯 Evaluating dynamic lambda adjustment...")
+                print(f"   Evaluating dynamic lambda adjustment...")
                 old_lambda = self.adversarial_lambda
                 self.update_dynamic_adversarial_lambda(age_accuracy, gender_accuracy, round_idx)
                 if self.adversarial_lambda != old_lambda:
-                    print(f"   🛡️ DYNAMIC LAMBDA UPDATE: {old_lambda:.3f} → {self.adversarial_lambda:.3f}")
+                    print(f"   DYNAMIC LAMBDA UPDATE: {old_lambda:.3f} → {self.adversarial_lambda:.3f}")
                     print(f"     Reason: Attack performance evaluation")
                     print(f"     Strategy: {self.lambda_adjustment_strategy}")
             else:
                 # Dynamic lambda is DISABLED - lambda only changes via dashboard
-                print(f"   🎯 Dynamic lambda system DISABLED - lambda controlled by dashboard")
+                print(f"   Dynamic lambda system DISABLED - lambda controlled by dashboard")
             
             # Calculate defense strength
             defense_strength = self._calculate_defense_strength(age_accuracy, gender_accuracy)
@@ -554,7 +554,7 @@ class FederatedServer:
         
         # Use the ACTUAL trained inference models (not dummy models)
         if not hasattr(self, 'age_inference_model') or not hasattr(self, 'gender_inference_model'):
-            print("     ⚠️ Warning: Inference models not available, using WILD random noise")
+            print("     Warning: Inference models not available, using WILD random noise")
             # Fallback to EXTREMELY strong random perturbations
             noise = tf.random.normal(embeddings_tensor.shape, stddev=adversarial_lambda * 3.0)  # 3x stronger!
             return (embeddings_tensor + noise).numpy()
@@ -755,23 +755,23 @@ class FederatedServer:
                         )
                 
                 protected_embeddings = protected_embeddings + gender_targeted_noise
-                print(f"     🎯 EXTREME Gender Defense: Added targeted noise to {gender_top_k} gender-predictive features")
+                print(f"     EXTREME Gender Defense: Added targeted noise to {gender_top_k} gender-predictive features")
                 
             except Exception as e:
-                print(f"     ⚠️ Could not apply gender-specific defense: {e}")
+                print(f"     Could not apply gender-specific defense: {e}")
         
         # Calculate perturbation strength for logging
         perturbation_norm = tf.norm(protected_embeddings - embeddings_tensor)
         original_norm = tf.norm(embeddings_tensor)
         perturbation_ratio = perturbation_norm / (original_norm + 1e-8)
         
-        print(f"     🎯 EXTREME WILD Defense Applied:")
+        print(f"     EXTREME WILD Defense Applied:")
         print(f"       Multi-step iterations: {num_steps}")
         print(f"       Perturbation strength: {float(perturbation_ratio):.3f}")
         print(f"       Lambda: {adversarial_lambda:.3f}")
         print(f"       Targeted features: {top_k}/{embeddings_tensor.shape[1]}")
         print(f"       Gender focus multiplier: 3.0x")
-        print(f"       🔥 EXTREME WILD mode: {num_steps}-step multi-strategy with gender focus!")
+        print(f"       EXTREME WILD mode: {num_steps}-step multi-strategy with gender focus!")
         
         return protected_embeddings.numpy()
 
@@ -869,7 +869,7 @@ class FederatedServer:
         gender_threat = (gender_attack_strength / (100 - 50)) * 100  # Normalize to 0-100
         combined_threat = (age_threat + gender_threat) / 2
         
-        print(f"   🎯 Dynamic Lambda Analysis:")
+        print(f"   Dynamic Lambda Analysis:")
         print(f"     Age threat level: {age_threat:.1f}% (leakage: {age_leakage:.1f}%)")
         print(f"     Gender threat level: {gender_threat:.1f}% (leakage: {gender_leakage:.1f}%)")
         print(f"     Combined threat: {combined_threat:.1f}%")
@@ -904,13 +904,13 @@ class FederatedServer:
                 'gender_leakage': gender_leakage
             })
             
-            print(f"   🛡️ DYNAMIC LAMBDA UPDATE: {old_lambda:.3f} → {new_lambda:.3f}")
+            print(f"   DYNAMIC LAMBDA UPDATE: {old_lambda:.3f} → {new_lambda:.3f}")
             print(f"     Reason: Combined threat level {combined_threat:.1f}%")
             print(f"     Strategy: {self.lambda_adjustment_strategy}")
             
             return new_lambda
         else:
-            print(f"   🔒 Lambda unchanged: {self.adversarial_lambda:.3f} (small adjustment)")
+            print(f"   Lambda unchanged: {self.adversarial_lambda:.3f} (small adjustment)")
             return self.adversarial_lambda
     
     def _update_lambda_with_pid_control(self, age_leakage, gender_leakage, combined_threat):
@@ -1348,15 +1348,15 @@ def train_global_model_round(round_idx):
             defense_strength = (age_defense_effectiveness + gender_defense_effectiveness) / 2
             defense_strength = max(0, min(100, defense_strength))  # Clamp to 0-100%
             
-            print(f"   🛡️ Adversarial defense ACTIVE - Protection level: {defense_strength:.2f}%")
-            print(f"   📊 Age attack: {age_leakage:.1f}% (baseline: {baseline_age_accuracy:.1f}%, reduction: {age_attack_reduction:.1f}%)")
-            print(f"   📊 Gender attack: {gender_leakage:.1f}% (baseline: {baseline_gender_accuracy:.1f}%, reduction: {gender_attack_reduction:.1f}%)")
-            print(f"   🎯 Age defense effectiveness: {age_defense_effectiveness:.1f}%")
-            print(f"   🎯 Gender defense effectiveness: {gender_defense_effectiveness:.1f}%")
+            print(f"   Adversarial defense ACTIVE - Protection level: {defense_strength:.2f}%")
+            print(f"   Age attack: {age_leakage:.1f}% (baseline: {baseline_age_accuracy:.1f}%, reduction: {age_attack_reduction:.1f}%)")
+            print(f"   Gender attack: {gender_leakage:.1f}% (baseline: {baseline_gender_accuracy:.1f}%, reduction: {gender_attack_reduction:.1f}%)")
+            print(f"   Age defense effectiveness: {age_defense_effectiveness:.1f}%")
+            print(f"   Gender defense effectiveness: {gender_defense_effectiveness:.1f}%")
         else:
             # No adversarial training = No defense = 0% protection
             defense_strength = 0.0
-            print(f"   🔓 No adversarial defense - embeddings vulnerable to inference attacks")
+            print(f"   No adversarial defense - embeddings vulnerable to inference attacks")
         
         # Update training status for dashboard
         config = get_config()
@@ -2063,7 +2063,7 @@ def update_adversarial_lambda():
         # Determine if this is a "Run Protection" or "Stop Protection" command
         if new_lambda > 0.0:
             # "Run Protection" button clicked
-            print(f"🛡️ PROTECTION ACTIVATED by dashboard")
+            print(f"PROTECTION ACTIVATED by dashboard")
             print(f"   Enabling dynamic lambda system")
             print(f"   Starting lambda: {new_lambda:.3f}")
             
@@ -2088,7 +2088,7 @@ def update_adversarial_lambda():
             
         else:
             # "Stop Protection" button clicked
-            print(f"🛡️ PROTECTION DEACTIVATED by dashboard")
+            print(f"PROTECTION DEACTIVATED by dashboard")
             print(f"   Disabling dynamic lambda system")
             print(f"   Lambda set to: 0.0")
             
@@ -2181,7 +2181,7 @@ def configure_dynamic_lambda():
             strategy = data['strategy']
             if strategy in ['adaptive_pid', 'threshold_based', 'exponential']:
                 federated_server.lambda_adjustment_strategy = strategy
-                print(f"🎯 Dynamic lambda strategy updated to: {strategy}")
+                print(f"Dynamic lambda strategy updated to: {strategy}")
             else:
                 return jsonify({
                     'success': False,
@@ -2194,13 +2194,13 @@ def configure_dynamic_lambda():
             for param in ['kp', 'ki', 'kd', 'target_age_leakage', 'target_gender_leakage']:
                 if param in pid_params:
                     federated_server.lambda_pid[param] = float(pid_params[param])
-                    print(f"🎛️ Updated {param}: {federated_server.lambda_pid[param]}")
+                    print(f"Updated {param}: {federated_server.lambda_pid[param]}")
         
         # Enable/disable dynamic lambda
         if 'enabled' in data:
             federated_server.dynamic_lambda_enabled = bool(data['enabled'])
             status = "ENABLED" if federated_server.dynamic_lambda_enabled else "DISABLED"
-            print(f"🎯 Dynamic lambda system: {status}")
+            print(f"Dynamic lambda system: {status}")
         
         return jsonify({
             'success': True,
@@ -2236,7 +2236,7 @@ def reset_lambda_history():
         federated_server.lambda_pid['integral'] = 0.0
         federated_server.lambda_pid['previous_error'] = 0.0
         
-        print(f"🔄 Lambda history reset:")
+        print(f"Lambda history reset:")
         print(f"   Cleared {old_performance_count} performance records")
         print(f"   Cleared {old_lambda_count} lambda adjustments")
         print(f"   Reset PID integral and derivative terms")
@@ -2331,13 +2331,13 @@ def main():
     
     # Validate arguments
     if not (1 <= args.data_percentage <= 100):
-        print("❌ Error: data_percentage must be between 1 and 100")
+        print("Error: data_percentage must be between 1 and 100")
         sys.exit(1)
     if not (1 <= args.fl_rounds <= 20):
-        print("❌ Error: fl_rounds must be between 1 and 20")
+        print("Error: fl_rounds must be between 1 and 20")
         sys.exit(1)
     if not (1 <= args.epochs_per_round <= 20):
-        print("❌ Error: epochs_per_round must be between 1 and 20")
+        print("Error: epochs_per_round must be between 1 and 20")
         sys.exit(1)
     
     # Configure auto-shutdown based on command line

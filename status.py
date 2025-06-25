@@ -98,7 +98,7 @@ def update_training_status(current_round, total_rounds, accuracy=None, loss=None
         with open("status/status.json", "w") as f:
             json.dump(status, f, indent=2)
             
-        print(f"📊 Status Updated: {current_status_message}")
+        print(f"Status Updated: {current_status_message}")
         
     except Exception as e:
         print(f"Warning: Could not update status file: {e}")
@@ -196,7 +196,7 @@ def finalize_training_status(best_accuracy, best_f1, total_time, total_rounds):
         with open("status/status.json", "w") as f:
             json.dump(current_status, f, indent=2)
             
-        print(f"✅ Final Status: {final_status['status_message']}")
+        print(f"Final Status: {final_status['status_message']}")
             
     except Exception as e:
         print(f"Warning: Could not update final status: {e}")
@@ -241,7 +241,7 @@ def initialize_status(total_rounds, status_key="INITIALIZING_SERVER"):
         with open("status/status.json", "w") as f:
             json.dump(initial_status, f, indent=2)
             
-        print(f"🚀 Initialized: {initial_status['status_message']}")
+        print(f"Initialized: {initial_status['status_message']}")
         
     except Exception as e:
         print(f"Warning: Could not initialize status file: {e}")
@@ -268,7 +268,7 @@ def set_status_message(status_key, **kwargs):
         with open("status/status.json", "w") as f:
             json.dump(current_status, f, indent=2)
             
-        print(f"📝 Status Message: {current_status['status_message']}")
+        print(f"Status Message: {current_status['status_message']}")
         
     except Exception as e:
         print(f"Warning: Could not update status message: {e}")
@@ -287,4 +287,4 @@ def cleanup_status_files():
         except Exception as e:
             print(f"Warning: Could not remove {file}: {e}")
     
-    print("🧹 Status files cleaned up")
+    print("Status files cleaned up")

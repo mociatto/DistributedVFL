@@ -346,15 +346,15 @@ def _train_with_adversarial(fusion_model, adversarial_model,
                            val_image_embeddings, val_tabular_embeddings, val_labels, val_sensitive_attrs,
                            adversarial_lambda, epochs, batch_size, verbose):
     """Train fusion model with REAL adversarial component - ENHANCED VERSION."""
-    print(f"🛡️ REAL Adversarial Training ENABLED with lambda={adversarial_lambda}")
+    print(f"REAL Adversarial Training ENABLED with lambda={adversarial_lambda}")
     print("   Training with gradient-based privacy-preserving adversarial loss")
     
     if adversarial_lambda > 0.0:
-        print(f"   🎯 Implementing REAL adversarial training (strength: {adversarial_lambda:.2f})")
+        print(f"   Implementing REAL adversarial training (strength: {adversarial_lambda:.2f})")
         
         # Check if sensitive attributes are available
         if sensitive_attrs is None or val_sensitive_attrs is None:
-            print("   ⚠️ Warning: No sensitive attributes available - using dummy targets for adversarial training")
+            print("   Warning: No sensitive attributes available - using dummy targets for adversarial training")
             # Create dummy sensitive attributes for adversarial training
             n_train = len(labels)
             n_val = len(val_labels)
@@ -383,7 +383,7 @@ def _train_with_adversarial(fusion_model, adversarial_model,
         print(f"   Age distribution: {np.bincount(age_labels)} (6 age groups)")
         
         # Create REAL adversarial models for privacy attacks
-        print("   🔧 Creating adversarial inference models...")
+        print("   Creating adversarial inference models...")
         age_adversary = tf.keras.Sequential([
             tf.keras.layers.Dense(128, activation='relu', input_shape=(combined_embeddings.shape[1],)),
             tf.keras.layers.Dropout(0.3),
@@ -413,7 +413,7 @@ def _train_with_adversarial(fusion_model, adversarial_model,
             metrics=['accuracy']
         )
         
-        print("   🚀 Starting adversarial training loop...")
+        print("   Starting adversarial training loop...")
         history = {'accuracy': [], 'val_accuracy': [], 'loss': [], 'val_loss': [], 
                   'age_adv_acc': [], 'gender_adv_acc': [], 'privacy_loss': []}
         
@@ -496,7 +496,7 @@ def _train_with_adversarial(fusion_model, adversarial_model,
         final_age_acc = age_adversary.evaluate(val_combined_embeddings, val_age_labels, verbose=0)[1]
         final_gender_acc = gender_adversary.evaluate(val_combined_embeddings, val_gender_labels, verbose=0)[1]
         
-        print(f"   ✅ REAL Adversarial Training Complete:")
+        print(f"   REAL Adversarial Training Complete:")
         print(f"     Main task accuracy: {final_accuracy:.4f}")
         print(f"     Age inference accuracy: {final_age_acc:.4f} (baseline: 16.67%)")
         print(f"     Gender inference accuracy: {final_gender_acc:.4f} (baseline: 50.0%)")
@@ -522,7 +522,7 @@ def _train_with_adversarial(fusion_model, adversarial_model,
         }
     else:
         # No adversarial training
-        print("   🔓 Standard training (no privacy protection)")
+        print("   Standard training (no privacy protection)")
     return _train_without_adversarial(
         fusion_model, image_embeddings, tabular_embeddings, labels,
         val_image_embeddings, val_tabular_embeddings, val_labels,
