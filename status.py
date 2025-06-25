@@ -10,7 +10,9 @@ import os
 
 
 def update_training_status(current_round, total_rounds, accuracy=None, loss=None,
-                          f1_score=None, client_weights=None, phase="training"):
+                          f1_score=None, precision=None, recall=None, precision_recall=None,
+                          defense_strength=None, client_weights=None, phase="training",
+                          gender_fairness=None, age_fairness=None):
     """
     Update the training status JSON file with current progress.
     
@@ -20,8 +22,14 @@ def update_training_status(current_round, total_rounds, accuracy=None, loss=None
         accuracy (float): Current accuracy
         loss (float): Current loss
         f1_score (float): Current F1 score
+        precision (float): Current precision
+        recall (float): Current recall
+        precision_recall (float): Combined precision-recall metric
+        defense_strength (float): Defense strength from adversarial loss
         client_weights (list): Attention weights for clients
         phase (str): Current training phase
+        gender_fairness (list): Gender fairness scores [female_acc, male_acc]
+        age_fairness (list): Age fairness scores for 6 age groups
     """
     status = {
         "current_round": current_round,
@@ -33,7 +41,13 @@ def update_training_status(current_round, total_rounds, accuracy=None, loss=None
         "metrics": {
             "accuracy": round(accuracy, 4) if accuracy is not None else None,
             "loss": round(loss, 4) if loss is not None else None,
-            "f1_score": round(f1_score, 4) if f1_score is not None else None
+            "f1_score": round(f1_score, 4) if f1_score is not None else None,
+            "precision": round(precision, 4) if precision is not None else None,
+            "recall": round(recall, 4) if recall is not None else None,
+            "precision_recall": round(precision_recall, 4) if precision_recall is not None else None,
+            "defense_strength": round(defense_strength, 4) if defense_strength is not None else None,
+            "gender_fairness": [round(g, 2) for g in gender_fairness] if gender_fairness is not None else [0.0, 0.0],
+            "age_fairness": [round(a, 2) for a in age_fairness] if age_fairness is not None else [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         },
         "client_weights": client_weights if client_weights is not None else None,
         "status": "running" if current_round < total_rounds else "completed"

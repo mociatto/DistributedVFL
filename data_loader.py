@@ -182,11 +182,11 @@ class HAM10000DataLoader:
         # Fill missing ages with median
         self.df['age'] = self.df['age'].fillna(self.df['age'].median())
         
-        # Create age bins for sensitive attribute analysis
+        # Create age bins for sensitive attribute analysis (6 groups)
         self.df['age_bin'] = pd.cut(
             self.df['age'],
-            bins=[0, 30, 45, 60, 75, 120],
-            labels=[0, 1, 2, 3, 4],
+            bins=[0, 30, 40, 50, 60, 70, 120],
+            labels=[0, 1, 2, 3, 4, 5],  # 6 groups: -30, 31-40, 41-50, 51-60, 61-70, +71
             include_lowest=True
         ).astype(int)
         

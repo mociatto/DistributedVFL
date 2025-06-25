@@ -1,0 +1,1176 @@
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: #2c2c2c;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Montserrat', sans-serif;
+}
+
+/* Left Sidebar */
+.left-sidebar {
+    position: absolute;
+    top: 25px;
+    left: 25px;
+    bottom: 25px;
+    width: 315px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Logo Text */
+.logo-text {
+    color: #F2EEE3;
+    font-size: 30pt;
+    margin-top: 65px;
+}
+
+.hybrid-text {
+    font-weight: 700;
+}
+
+.vfl-text {
+    font-weight: 400;
+}
+
+/* Tab Navigation */
+.tab-navigation {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 60px;
+    margin-top: 200px;
+    width: 100%;
+    padding-left: 40px;
+    padding-right: 40px;
+}
+
+.tab-item {
+    color: #808080;
+    font-size: 18pt;
+    font-weight: 400;
+    cursor: pointer;
+    transition: color 0.3s ease;
+    text-align: left;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.tab-item:hover {
+    opacity: 0.8;
+}
+
+/* Tab Icon */
+.tab-icon {
+    width: 40px;
+    height: 40px;
+    fill: currentColor;
+    margin-right: 10px;
+    flex-shrink: 0;
+    display: block;
+}
+
+/* Tab Arrow Indicator */
+.tab-arrow-indicator {
+    position: absolute;
+    left: 325px;
+    top: 25px;
+    width: 75px;
+    height: 200px;
+    z-index: 5;
+    transition: top 0.3s ease;
+}
+
+.tab-arrow-indicator svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* Active tab colors - only one can be active at a time */
+.tab-item[data-tab="home"].active {
+    color: #7A80F2;
+}
+
+.tab-item[data-tab="performance"].active {
+    color: #F7D78E;
+}
+
+.tab-item[data-tab="attack"].active {
+    color: #FF893B;
+}
+
+.tab-item[data-tab="defense"].active {
+    color: #8BA278;
+}
+
+/* Main Container */
+.main-container {
+    background-color: #F2EEE3;
+    border-radius: 100px;
+    position: absolute;
+    top: 25px;
+    left: 365px;
+    bottom: 25px;
+    right: 25px;
+    padding: 50px;
+    overflow-y: auto;
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+    width: 100%;
+    height: 100%;
+}
+
+.tab-content.active {
+    display: flex;
+    flex-direction: column;
+    gap: 50px;
+    height: 100%;
+}
+
+/* Content Rows */
+.content-row {
+    display: flex;
+    gap: 50px;
+    justify-content: center;
+    align-items: stretch;
+    flex: 1;
+}
+
+/* Content Boxes */
+.content-box {
+    background-color: #FFFFFD;
+    border-radius: 50px;
+    flex: 1;
+    position: relative;
+}
+
+/* Box Titles */
+.box-title {
+    position: absolute;
+    top: 30px;
+    left: 50px;
+    font-size: 18pt;
+    font-weight: 700;
+    color: #2c2c2c;
+}
+
+/* Box Taglines */
+.box-tagline {
+    position: absolute;
+    top: 65px;
+    left: 50px;
+    font-size: 12pt;
+    font-weight: 400;
+    color: #808080;
+}
+
+/* Attack and Defense Tab Special Layout */
+#attack-content,
+#defense-content {
+    height: 100%;
+}
+
+#attack-content .content-row:first-child,
+#defense-content .content-row:first-child {
+    flex: 2; /* Takes remaining space after second row */
+    min-height: 0; /* Allow shrinking */
+}
+
+#attack-content .content-row:last-child,
+#defense-content .content-row:last-child {
+    flex: 0 0 305px; /* Fixed height of 305px */
+    min-height: 305px; /* Ensure minimum height */
+}
+
+/* Inner Boxes Container */
+.inner-boxes-container {
+    position: absolute;
+    top: 100px;
+    left: 50px;
+    right: 50px;
+    bottom: 50px;
+    display: flex;
+    gap: 50px;
+}
+
+/* Inner Boxes */
+.inner-box {
+    border-radius: 25px;
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+/* Active Inner Box (Left) */
+.active-inner-box {
+    background-color: #A2A6FD;
+}
+
+.active-inner-box:hover {
+    background-color: #8A90FF;
+}
+
+/* Freeze Inner Boxes (Right 3) */
+.freeze-inner-box {
+    background-color: #F2EEE3;
+}
+
+.freeze-inner-box:hover {
+    background-color: #E8E4E3;
+}
+
+/* Inner Box Titles */
+.inner-box-title {
+    position: absolute;
+    top: 25px;
+    left: 25px;
+    font-size: 18pt;
+    font-weight: 700;
+}
+
+/* Active Title Color */
+.active-title {
+    color: #2C2C2C;
+}
+
+/* Freeze Title Color */
+.freeze-title {
+    color: #808080;
+}
+
+/* Inner Info Container */
+.inner-info-container {
+    position: absolute;
+    top: 75px;
+    left: 25px;
+    right: 25px;
+    bottom: 25px;
+    display: flex;
+    gap: 25px;
+}
+
+/* Inner Info Boxes */
+.inner-info-box {
+    background-color: #7A80F2;
+    border-radius: 10px;
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.inner-info-box:hover {
+    background-color: #6B75E8;
+}
+
+/* Inner Info Text */
+.inner-info-text {
+    font-size: 12pt;
+    font-weight: 400;
+    color: #FFFFFD;
+    text-align: center;
+}
+
+/* Inner Info Box Freeze */
+.inner-info-box-freeze {
+    background-color: #D0CCC9;
+    border-radius: 10px;
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.inner-info-box-freeze:hover {
+    background-color: #C4BFB9;
+}
+
+.inner-info-box-freeze .inner-info-text {
+    color: #808080;
+}
+
+/* Percentage Container */
+.percentage-container {
+    position: absolute;
+    top: 100px;
+    left: 50px;
+    right: 50px;
+    bottom: 50px;
+    background-color: #F2EEE3;
+    border-radius: 25px;
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+/* Percentage Rows */
+.percentage-row {
+    display: flex;
+    gap: 25px;
+    flex: 1;
+}
+
+/* Percentage Buttons */
+.percentage-btn {
+    background-color: #FFFFFD;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12pt;
+    font-weight: 400;
+    color: #2C2C2C;
+    text-align: center;
+    border: none;
+    border-radius: 10px;
+    flex: 1;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.percentage-btn:hover {
+    background-color: #7A80F2;
+}
+
+.percentage-btn.selected {
+    background-color: #A2A6FD;
+    font-weight: 700;
+}
+
+/* Run Panel Container */
+.run-panel-container {
+    position: absolute;
+    top: 100px;
+    left: 50px;
+    right: 50px;
+    bottom: 50px;
+    background-color: #F2EEE3;
+    border-radius: 25px;
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+/* Control Buttons Row */
+.control-buttons {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    width: 100%;
+}
+
+/* Running Time Section */
+.running-time-section {
+    flex: 1;
+}
+
+.time-display-box {
+    background-color: #FFFFFD;
+    border-radius: 10px;
+    height: 60px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.time-display {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 18pt;
+    font-weight: 700;
+    color: #2C2C2C;
+}
+
+/* Progress Percentage Box */
+.progress-percentage-box {
+    background-color: #FFFFFD;
+    border-radius: 10px;
+    height: 60px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.progress-percentage {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 18pt;
+    font-weight: 700;
+    color: #2C2C2C;
+}
+
+/* Control Buttons Group */
+.control-buttons-group {
+    display: flex;
+    gap: 25px;
+    flex: 2;
+}
+
+.control-btn {
+    background-color: #FFFFFD;
+    border: none;
+    border-radius: 10px;
+    flex: 1;
+    height: 60px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: #FFFFFD;
+}
+
+.control-btn:hover {
+    background-color: #7A80F2;
+}
+
+.control-btn.selected {
+    background-color: #A2A6FD;
+}
+
+/* Control Icons */
+.play-icon {
+    color: #2C2C2C;
+    font-size: 30px;
+    transform: translateY(2px);
+}
+
+.stop-icon {
+    color: #2C2C2C;
+    font-size: 40px;
+    transform: translateY(3px);
+}
+
+.control-btn:hover .play-icon,
+.control-btn:hover .stop-icon,
+.control-btn.selected .play-icon,
+.control-btn.selected .stop-icon {
+    color: #FFFFFD;
+}
+
+/* Alternative for PNG icons */
+.control-icon {
+    width: 24px;
+    height: 24px;
+    filter: brightness(0) saturate(100%);
+}
+
+.control-btn:hover .control-icon,
+.control-btn.selected .control-icon {
+    filter: brightness(0) saturate(100%) invert(100%);
+}
+
+/* Progress Section */
+.progress-section {
+    display: flex;
+    align-items: center;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 20px;
+    background-color: #FFFFFD;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: #7A80F2;
+    border-radius: 10px;
+    width: 10%;
+    transition: width 0.3s ease;
+    min-width: 0;
+}
+
+.status-panel-container {
+    position: absolute;
+    top: 100px;
+    left: 50px;
+    right: 50px;
+    bottom: 50px;
+    background-color: #F2EEE3;
+    border-radius: 25px;
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.status-info-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 25px;
+    height: 30px;
+}
+
+.status-info-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-label {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 400;
+    font-size: 12pt;
+    color: #2C2C2C;
+    min-width: 120px;
+    text-align: left;
+}
+
+.status-value {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 12pt;
+    color: #7A80F2;
+    min-width: 40px;
+    text-align: left;
+}
+
+.status-box {
+    background-color: #FFFFFD;
+    border-radius: 10px;
+    height: 60px;
+    width: 100%;
+    margin-top: auto;
+    margin-bottom: 0;
+}
+
+/* Vertical Container for Rounds and Epochs */
+.vertical-container {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 50px;
+}
+
+.vertical-box {
+    flex: 1;
+}
+
+/* Slider Container */
+.slider-container {
+    position: absolute;
+    top: 50%;
+    left: 450px;
+    right: 20px;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+}
+
+/* Slider Wrapper */
+.slider-wrapper {
+    flex: 1;
+    position: relative;
+    height: 40px;
+    display: flex;
+    align-items: center;
+}
+
+/* Base Slider Styling */
+.slider {
+    width: 100%;
+    height: 20px;
+    border-radius: 10px;
+    outline: none;
+    opacity: 0;
+    position: absolute;
+    cursor: pointer;
+    z-index: 2;
+}
+
+/* Slider Track */
+.slider-track {
+    width: 100%;
+    height: 20px;
+    border-radius: 10px;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #F2EEE3;
+    overflow: hidden;
+}
+
+/* Slider Track Fill */
+.slider-track::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: var(--progress);
+    border-radius: 10px;
+    transition: width 0.3s ease;
+}
+
+/* Rounds Track Fill (Green) */
+.rounds-track::before {
+    background-color: #C7D0BD;
+}
+
+/* Epochs Track Fill (Yellow) */
+.epochs-track::before {
+    background-color: #F7D78E;
+}
+
+/* Slider Thumb */
+.slider-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 1;
+    left: calc(var(--progress) - 20px);
+}
+
+/* Rounds Thumb (Green) */
+.rounds-thumb {
+    background-color: #8BA278;
+}
+
+/* Epochs Thumb (Yellow) */
+.epochs-thumb {
+    background-color: #DDBA5E;
+}
+
+/* Slider Input */
+.slider-input {
+    width: 80px;
+    height: 40px;
+    border: none;
+    border-radius: 10px;
+    background-color: #FFFFFD;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 18pt;
+    font-weight: 700;
+    color: #2C2C2C;
+    text-align: center;
+    outline: none;
+}
+
+/* Remove default slider styling */
+.slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+/* Rounds Slider Thumb */
+.rounds-slider::-webkit-slider-thumb {
+    background-color: #8BA278;
+}
+
+.rounds-slider::-moz-range-thumb {
+    background-color: #8BA278;
+}
+
+/* Epochs Slider Thumb */
+.epochs-slider::-webkit-slider-thumb {
+    background-color: #DDBA5E;
+}
+
+.epochs-slider::-moz-range-thumb {
+    background-color: #DDBA5E;
+}
+
+/* Protection Controls */
+.protection-controls {
+    display: flex;
+    gap: 50px;
+    padding-top: 100px;
+    padding-left: 50px;
+    padding-right: 50px;
+    min-height: 0;
+}
+
+.protection-btn {
+    flex: 1;
+    border: none;
+    border-radius: 25px;
+    padding: 25px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.protection-btn-content {
+    position: relative;
+    text-align: left;
+    padding-right: 50px;
+}
+
+.protection-btn-title {
+    color: #2C2C2C;
+    font-size: 18pt;
+    font-weight: 700;
+    font-family: 'Montserrat', sans-serif;
+    margin-bottom: 10px;
+}
+
+.protection-btn-tagline {
+    color: #2C2C2C;
+    font-size: 12pt;
+    font-weight: 400;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.protection-icon {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    color: #FFFFFD;
+}
+
+.run-protection {
+    background-color: #C7D0BD;
+}
+
+.run-protection:hover,
+.run-protection.selected {
+    background-color: #8BA278;
+}
+
+.stop-protection {
+    background-color: #FFA569;
+}
+
+.stop-protection:hover,
+.stop-protection.selected {
+    background-color: #ED8845;
+}
+
+/* Run Protection Icon */
+.run-protection .protection-icon {
+    font-size: 30pt;
+    transform: translateY(-45%);
+}
+
+/* Stop Protection Icon */
+.stop-protection .protection-icon {
+    font-size: 45pt;
+    transform: translateY(-45%);
+}
+
+/* Protection Scores */
+.protection-scores {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0 50px;
+    margin-top: 50px;
+}
+
+.metrics-container {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: #F7D78E;
+    border-radius: 25px;
+    padding-top: 100px;
+    padding-left: 25px;
+    padding-right: 25px;
+    padding-bottom: 25px;
+    position: relative;
+}
+
+.scores-title {
+    font-size: 18pt;
+    font-weight: 700;
+    font-family: 'Montserrat', sans-serif;
+    color: #2C2C2C;
+    position: absolute;
+    top: 25px;
+    left: 25px;
+}
+
+.scores-tagline {
+    font-size: 12pt;
+    font-weight: 400;
+    font-family: 'Montserrat', sans-serif;
+    color: #2C2C2C;
+    position: absolute;
+    top: 60px;
+    left: 25px;
+}
+
+.metrics-grid {
+    flex: 1 1 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 25px;
+}
+
+.metric-box {
+    background-color: #8BA278;
+    border-radius: 15px;
+    padding: 25px;
+    transition: background-color 0.3s ease;
+}
+
+.metric-label {
+    color: #FFFFFD;
+    font-size: 12pt;
+    font-weight: 400;
+    text-align: left;
+}
+
+.metric-value {
+    color: #2C2C2C;
+    font-size: 30pt;
+    font-weight: 700;
+    text-align: center;
+    margin-top: 50px;
+}
+
+/* Metric box color states */
+.metric-box[data-state="low"] {
+    background-color: #FFA569;
+}
+
+.metric-box[data-state="medium"] {
+    background-color: #DDBA5E;
+}
+
+.metric-box[data-state="high"] {
+    background-color: #8BA278;
+}
+
+.metric-box[data-state="low-inverse"] {
+    background-color: #8BA278;
+}
+
+.metric-box[data-state="medium-inverse"] {
+    background-color: #DDBA5E;
+}
+
+.metric-box[data-state="high-inverse"] {
+    background-color: #FFA569;
+}
+
+#defense-content .content-box {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 50px;
+    height: 100%;
+    min-height: 0;
+}
+
+.architecture-box {
+    display: flex;
+    flex-direction: column;
+    padding-top: 100px;
+    padding-left: 50px;
+    padding-right: 50px;
+    padding-bottom: 50px;
+    height: 100%;
+    min-height: 0;
+}
+
+/* Architecture Visualization Container */
+.architecture-visualization {
+    position: relative;
+    width: calc(100% - 100px);
+    height: calc(100% - 150px);
+    min-height: 300px;
+    background-color: transparent;
+    border-radius: 0;
+    margin: 100px 50px 50px 50px;
+    border: none;
+}
+
+/* Architecture Background Container */
+.architecture-background {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #2C2C2C;
+    border-radius: 25px;
+    padding: 100px 50px 50px 50px;
+    box-sizing: border-box;
+}
+
+/* Connection Lines SVG */
+.connections-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.connection-line {
+    stroke: #FF893B;
+    stroke-width: 2;
+    stroke-dasharray: 8, 4;
+    opacity: 0.8;
+    will-change: stroke-dashoffset;
+}
+
+/* Send Lines (Data going to server) */
+.send-line {
+    animation: connectionFlowSend 3s linear infinite;
+}
+
+/* Receive Lines (Data coming from server) */
+.receive-line {
+    animation: connectionFlowReceive 3s linear infinite;
+}
+
+/* Client connection lines with different color */
+.client-line {
+    stroke: #8BA278;
+}
+
+/* Send Animation (Normal direction) */
+@keyframes connectionFlowSend {
+    0% {
+        stroke-dashoffset: 0;
+    }
+    100% {
+        stroke-dashoffset: 24;
+    }
+}
+
+/* Receive Animation (Reverse direction) */
+@keyframes connectionFlowReceive {
+    0% {
+        stroke-dashoffset: 24;
+    }
+    100% {
+        stroke-dashoffset: 0;
+    }
+}
+
+/* Draggable Components Base Style */
+.draggable-component {
+    position: absolute;
+    width: 250px;
+    height: 150px;
+    background-color: #FFFFFD;
+    border-radius: 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: move;
+    user-select: none;
+    z-index: 2;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Component Icons */
+.component-icon {
+    font-size: 32px;
+    margin-bottom: 20px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* SVG Icon Styling */
+.icon-svg {
+    width: 50px;
+    height: 50px;
+    /* No filter needed - SVG files already have white fill */
+}
+
+/* Component Labels */
+.component-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12pt;
+    font-weight: 400;
+    color: #FFFFFD;
+    text-align: center;
+}
+
+/* Server Component Styling */
+.server-component {
+    background-color: #7A80F2;
+}
+
+.server-component:hover {
+    background-color: #A2A6FD;
+}
+
+/* Defense Indicator */
+.defense-indicator {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    width: 30px;
+    height: 30px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    z-index: 3;
+}
+
+.defense-indicator.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.defense-icon {
+    width: 100%;
+    height: 100%;
+    filter: brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%);
+    animation: defenseGlowPulse 0.5s ease-in-out infinite alternate;
+    transform-origin: center center;
+}
+
+@keyframes defenseGlowPulse {
+    0% {
+        filter: brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%) drop-shadow(0 0 5px #4CAF50);
+        transform: scale(1);
+    }
+    100% {
+        filter: brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%) drop-shadow(0 0 15px #4CAF50) drop-shadow(0 0 25px #4CAF50);
+        transform: scale(1.2);
+    }
+}
+
+/* Inference Components Styling */
+.inference-component {
+    background-color: #ED8845;
+}
+
+.inference-component:hover {
+    background-color: #FFA569;
+}
+
+/* Client Components Styling */
+.client-component {
+    background-color: #8BA278;
+}
+
+.client-component:hover {
+    background-color: #C7D0BD;
+}
+
+/* Initial Positioning */
+#server-component {
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+#age-inference {
+    top: 50px;
+    left: 20%;
+    transform: translateX(-50%);
+}
+
+#gender-inference {
+    top: 50px;
+    right: 20%;
+    transform: translateX(50%);
+}
+
+#image-client {
+    bottom: 50px;
+    left: 25%;
+    transform: translateX(-50%);
+}
+
+#tabular-client {
+    bottom: 50px;
+    right: 25%;
+    transform: translateX(50%);
+}
+
+/* Dragging State */
+.draggable-component.dragging {
+    z-index: 10;
+    transform: scale(1.1);
+    transition: none !important;
+}
+
+/* Component Type Specific Enhancements - SVG icons use their natural white color */
+.server-component .icon-svg,
+.inference-component .icon-svg,
+.client-component .icon-svg {
+    /* No filter needed - SVG files already have white fill defined */
+}
+
+/* Responsive Adjustments */
+@media (max-width: 1200px) {
+    .draggable-component {
+        width: 100px;
+        height: 85px;
+    }
+    
+    .component-icon {
+        font-size: 30pt;
+    }
+    
+    .component-label {
+        font-size: 12pt;
+    }
+}
+
+/* Chart Container Styles */
+.chart-container {
+    position: absolute;
+    top: 100px;
+    left: 50px;
+    right: 50px;
+    bottom: 50px;
+    min-height: 200px;
+}
+
+.chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+

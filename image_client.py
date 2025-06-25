@@ -171,10 +171,21 @@ class DistributedImageClient:
         
         os.makedirs(output_dir, exist_ok=True)
         
+        # Get sensitive attributes for the same indices
+        if data_split == 'train':
+            sensitive_attrs = self.train_data['sensitive_attrs']
+        elif data_split == 'val':
+            sensitive_attrs = self.val_data['sensitive_attrs']
+        elif data_split == 'test':
+            sensitive_attrs = self.test_data['sensitive_attrs']
+        else:
+            sensitive_attrs = None
+        
         embedding_data = {
             'embeddings': embeddings,
             'labels': labels,
             'indices': indices,
+            'sensitive_attrs': sensitive_attrs,  # Add sensitive attributes
             'client_id': self.client_id,
             'data_split': data_split,
             'embedding_dim': self.embedding_dim,

@@ -169,8 +169,7 @@ In `config.py`, you can adjust:
 
 ```python
 # Use less data for faster testing
-'data_percentage': 0.05,  # 5% of data (fast)
-'data_percentage': 0.1,   # 10% of data (medium)  
+'data_percentage': 0.05,  # 5% of data (fastest)
 'data_percentage': 1.0,   # 100% of data (slow but best)
 
 # Training rounds

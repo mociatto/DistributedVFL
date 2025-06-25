@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HYBRIDVFL Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="left-sidebar">
+        <div class="logo-text">
+            <span class="hybrid-text">HYBRID</span><span class="vfl-text">VFL</span>
+        </div>
+        
+        <div class="tab-navigation">
+            <div class="tab-item active" data-tab="home">
+                <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200.85 201.05" fill="currentColor" preserveAspectRatio="xMidYMid meet">
+                    <path d="M-0 92.01l0 64.29c0,25.87 17.27,44.58 42.71,44.58 8.37,0 20.58,0.98 27.07,-2.49 12.65,-6.76 10.94,-19.48 10.94,-32.7 0,-9.03 -1.2,-21.04 1.86,-27.23 8.5,-17.19 28.35,-15.24 35.38,-0.62 5.92,12.32 -2.06,41.48 5.36,53.3 7.55,12.02 20.61,9.75 34.83,9.75 25.42,0 42.7,-18.7 42.7,-44.58l0 -64.29c0,-12.87 -3.1,-22.13 -10.65,-31.12 -3.29,-3.92 -4.89,-4.98 -9.33,-8.5l-46.25 -38.22c-2.23,-1.82 -4.16,-3.57 -6.5,-5.23 -7.4,-5.24 -18.53,-8.95 -27.69,-8.95l-10.43 1.33c-3.41,0.78 -6.22,1.72 -9.13,3.07 -6.4,2.98 -9.34,5.32 -14.38,9.56 -7.62,6.42 -19.58,15.7 -26.48,21.85l-13.11 10.82c-2.32,1.87 -4.13,3.43 -6.39,5.34 -2.3,1.94 -4.31,3.67 -6.7,5.5 -3.64,2.8 -7.91,9.77 -9.9,14.04 -2.64,5.67 -3.91,12.38 -3.91,20.49z"/>
+                </svg>
+                <span>Home</span>
+            </div>
+            <div class="tab-item" data-tab="performance">
+                <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 78.99 51.81" fill="currentColor" preserveAspectRatio="xMidYMid meet">
+                    <path d="M46.83 36.2c0.37,1.59 0.69,1.19 0.69,3.6 0,4.27 -3.55,7.89 -8.23,7.89 -4.31,0 -7.89,-3.53 -7.89,-8.4 0,-5.03 5.11,-8.72 10.08,-7.51 0.54,0.13 0.88,0.35 1.41,0.48 0.55,-0.83 15.51,-15.75 16.17,-16.08 2.61,-1.29 4.99,1.4 3.89,3.72 -0.36,0.77 -1.54,1.8 -2.19,2.45 -1.78,1.78 -13.07,13.27 -13.94,13.85zm3.26 -21.61c-1.54,0 -1.26,-0.04 -2.72,-0.54 -0.66,-0.22 -1.33,-0.41 -2.15,-0.59 -10.13,-2.25 -20.78,1.74 -26.86,9.7 -0.28,0.36 -0.51,0.68 -0.81,1.08 -5.35,7.1 -4.58,15.46 -5.1,16.52 -1.32,2.72 -5.41,1.88 -5.41,-1.13 0,-5.32 1.15,-9.61 2.92,-13.55 4.8,-10.71 16.47,-18.87 28.47,-18.87 3.89,0 9.05,0.46 12.4,2.01 2.87,1.32 1.58,5.37 -0.74,5.37zm-50.08 23.33c0,4.74 -0.12,5.69 0.93,10.57 0.51,2.37 1.94,3.33 4.74,3.33l67.57 0c2.71,0 4.18,-0.91 4.7,-3.19 2.69,-11.67 0.04,-22.58 -6.45,-32.11 -3.69,-5.42 -10.4,-10.51 -16.09,-13.07 -3.3,-1.48 -9.71,-3.3 -13.54,-3.26 -1.1,0.01 -1.55,-0.18 -2.4,-0.18 -1.9,0 -6.82,0.61 -8.58,1.04 -7.15,1.75 -13.61,4.95 -18.82,10.17 -5.37,5.38 -8.6,10.5 -10.78,18.21 -0.65,2.3 -1.27,5.68 -1.27,8.5z"/>
+                </svg>
+                <span>Performance</span>
+            </div>
+            <div class="tab-item" data-tab="attack">
+                <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70.33 65.08" fill="currentColor" preserveAspectRatio="xMidYMid meet">
+                    <path d="M7.14 27.1c-2.32,0 -5.34,-0.38 -6.48,0.87 -1.51,1.66 -0.27,4.18 1.88,4.18l65.23 0c3.05,0 3.99,-5.09 -0.76,-5.06 -1.28,0.01 -2.56,0.01 -3.83,0.01l-5.12 -20.3c-1.51,-5.32 -6.81,-8.27 -12.45,-5.99 -1.43,0.58 -9.26,3.79 -10.15,3.79 -1.9,0 -5.49,-1.71 -7.35,-2.45 -1.98,-0.79 -4.95,-2.15 -7.04,-2.15 -4.42,0 -7.61,2.86 -8.75,6.57 -0.39,1.26 -0.72,2.82 -1.05,4.15l-4.13 16.38zm-2.3 24.01c0,0.76 0.22,2.24 0.37,3 0.38,1.89 1.59,4.39 2.88,5.84 0.36,0.4 0.48,0.63 0.84,1l1.94 1.58c9.29,6.73 21.83,-0.95 21.83,-10.65 0,-3.44 -0.44,-3.77 -0.46,-4.75 1.77,-0.85 4.04,-0.85 5.82,0 -0.16,1.97 -0.46,1.38 -0.46,4.75 0,1.9 0.75,4.08 1.37,5.36 3.62,7.39 13.36,10.29 20.37,5.36 7.27,-5.11 8.08,-15.16 2.11,-21.25 -4.2,-4.28 -11.33,-5.55 -16.65,-2.48 -0.78,0.45 -1.69,1 -2.34,1.64 -0.48,0.46 -1.8,1.63 -1.95,2.18 -1.73,-0.4 -2.11,-1.22 -5.67,-1.22 -2.53,0 -3.66,0.9 -5.05,1.22 -0.31,-1.15 -3.25,-3.22 -4.29,-3.82 -4.58,-2.65 -10.22,-2.09 -14.63,0.82l-3.46 3.43c-1.55,2.33 -2.57,5.11 -2.57,7.99z"/>
+                </svg>
+                <span>Attack</span>
+            </div>
+            <div class="tab-item" data-tab="defense">
+                <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 67.89 77.8" fill="currentColor" preserveAspectRatio="xMidYMid meet">
+                    <path d="M-0 18.22l0 22.28c0,9.98 6.77,19.55 13.92,25.86l4.94 3.9c2.03,1.52 5.89,4.01 8.12,5.14 0.54,0.27 0.89,0.41 1.4,0.72 2.3,1.38 3.34,1.69 6.09,1.69 2.57,0 4.61,-1.5 6.43,-2.41l5.53 -3.31c4.22,-2.82 5.38,-3.8 8.6,-6.78 0.48,-0.44 0.75,-0.56 1.24,-1.06 6.1,-6.12 11.62,-14.81 11.62,-23.74l0 -22.28c0,-3.39 -2.46,-6.96 -4.52,-8.38 -2.37,-1.64 -6.44,-2.72 -9.38,-3.7l-14.67 -4.95c-4.84,-1.63 -5.99,-1.52 -10.56,0l-19.62 6.54c-1.95,0.65 -2.96,1 -4.5,2.04 -2.13,1.44 -4.63,4.94 -4.63,8.46z"/>
+                </svg>
+                <span>Defense</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tab Arrow Indicator -->
+    <div class="tab-arrow-indicator">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 99.59 144.71" fill="#F1EFE3">
+            <path d="M99.59 144.71l0 -144.71 -46.9 0c0,8.12 -2.88,15.11 -8.59,20.87 -12.97,12.97 -25.94,25.94 -38.92,38.92 -6.92,6.92 -6.92,18.23 0,25.15l38.92 38.92c5.71,5.76 8.59,12.75 8.59,20.87l46.9 0z"/>
+        </svg>
+    </div>
+    
+    <div class="main-container">
+        <!-- Home Tab Content -->
+        <div class="tab-content active" id="home-content">
+            <!-- Row 1: 1 box -->
+            <div class="content-row">
+                <div class="content-box">
+                    <div class="box-title">Dataset</div>
+                    <div class="box-tagline">Choose The Dataset for Model Training</div>
+                    
+                    <!-- Inner boxes container -->
+                    <div class="inner-boxes-container">
+                        
+                        <!-- Box 1 -->
+                        <div class="inner-box active-inner-box">
+                             <div class="inner-box-title active-title">HAM-10K</div>
+                             
+                             <!-- Inner info boxes container -->
+                             <div class="inner-info-container">
+                                 <div class="inner-info-box">
+                                     <div class="inner-info-text">10,000 Samples</div>
+                                 </div>
+                                 <div class="inner-info-box">
+                                     <div class="inner-info-text">7 Classes</div>
+                                 </div>
+                             </div>
+                         </div>
+                        
+                        <!-- Box 2 -->
+                        <div class="inner-box freeze-inner-box">
+                            <div class="inner-box-title freeze-title">MINST</div>                             
+                            
+                            <!-- Inner info boxes container -->
+                            <div class="inner-info-container">
+                                <div class="inner-info-box-freeze">
+                                    <div class="inner-info-text">70,000 Samples</div>
+                                </div>
+                                <div class="inner-info-box-freeze">
+                                    <div class="inner-info-text">10 Classes</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Box 3 -->
+                        <div class="inner-box freeze-inner-box">
+                            <div class="inner-box-title freeze-title">CIFAR-10</div>
+
+                            <!-- Inner info boxes container -->
+                            <div class="inner-info-container">
+                                <div class="inner-info-box-freeze">
+                                    <div class="inner-info-text">60,000 Samples</div>
+                                </div>
+                                <div class="inner-info-box-freeze">
+                                    <div class="inner-info-text">10 Classes</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Box 4 -->
+                        <div class="inner-box freeze-inner-box">
+                            <div class="inner-box-title freeze-title">COCO-2017</div>
+
+                            <!-- Inner info boxes container -->
+                            <div class="inner-info-container">
+                                <div class="inner-info-box-freeze">
+                                    <div class="inner-info-text">330,000 Samples</div>
+                                </div>
+                                <div class="inner-info-box-freeze">
+                                    <div class="inner-info-text">80 Classes</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Row 2: 3 boxes -->
+            <div class="content-row">
+                <div class="content-box">
+                    <div class="box-title">Data Percentage</div>
+                    <div class="box-tagline">Select The Portion of Dataset</div>
+                    
+                    <!-- Percentage container -->
+                    <div class="percentage-container">
+                        <!-- Row 1: 5%, 10%, 20% -->
+                        <div class="percentage-row">
+                            <button class="percentage-btn" data-percentage="5">5%</button>
+                            <button class="percentage-btn" data-percentage="10">10%</button>
+                            <button class="percentage-btn" data-percentage="20">20%</button>
+                        </div>
+                        
+                        <!-- Row 2: 50%, 75%, 100% -->
+                        <div class="percentage-row">
+                            <button class="percentage-btn" data-percentage="50">50%</button>
+                            <button class="percentage-btn" data-percentage="75">75%</button>
+                            <button class="percentage-btn selected" data-percentage="100">100%</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Vertical container for Rounds and Epochs -->
+                <div class="vertical-container">
+                    <div class="content-box vertical-box">
+                        <div class="box-title">Federated Rounds</div>
+                        <div class="box-tagline">Select The Number of Training Rounds</div>
+                        
+                        <!-- Rounds Slider Container -->
+                        <div class="slider-container">
+                            <div class="slider-wrapper">
+                                <input type="range" class="slider rounds-slider" min="1" max="20" value="2" id="rounds-slider">
+                                <div class="slider-track rounds-track"></div>
+                                <div class="slider-thumb rounds-thumb"></div>
+                            </div>
+                            <input type="number" class="slider-input rounds-input" min="1" max="20" value="2" id="rounds-input">
+                        </div>
+                    </div>
+                    <div class="content-box vertical-box">
+                        <div class="box-title">Epochs Per Round</div>
+                        <div class="box-tagline">Select The Number of Epochs for Each Round</div>
+                        
+                        <!-- Epochs Slider Container -->
+                        <div class="slider-container">
+                            <div class="slider-wrapper">
+                                <input type="range" class="slider epochs-slider" min="1" max="20" value="3" id="epochs-slider">
+                                <div class="slider-track epochs-track"></div>
+                                <div class="slider-thumb epochs-thumb"></div>
+                            </div>
+                            <input type="number" class="slider-input epochs-input" min="1" max="20" value="3" id="epochs-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Row 3: 2 boxes -->
+            <div class="content-row">
+                <div class="content-box">
+                    <div class="box-title">Run Panel</div>
+                    <div class="box-tagline">Start Or Stop Model Training</div>
+                    
+                    <!-- Run Panel Container -->
+                    <div class="run-panel-container">
+                        <!-- Control Buttons Row -->
+                        <div class="control-buttons">
+                            <!-- Running Time Section -->
+                            <div class="running-time-section">
+                                <div class="time-display-box">
+                                    <span class="time-display">00:00:00</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Progress Percentage Box -->
+                            <div class="progress-percentage-box">
+                                <span class="progress-percentage">10%</span>
+                            </div>
+                            
+                            <!-- Control Buttons -->
+                            <div class="control-buttons-group">
+                                <button class="control-btn play-btn" data-action="play">
+                                    <!-- Play Icon (Triangle) -->
+                                    <!-- Alternative: <img src="/asset/play-icon.png" alt="Play" class="control-icon"> -->
+                                    <span class="play-icon">▶</span>
+                                </button>
+                                <button class="control-btn stop-btn selected" data-action="stop">
+                                    <!-- Stop Icon (Square) -->
+                                    <!-- Alternative: <img src="/asset/stop-icon.png" alt="Stop" class="control-icon"> -->
+                                    <span class="stop-icon">⏹</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Progress Bar Section -->
+                        <div class="progress-section">
+                            <div class="progress-bar">
+                                <div class="progress-fill" data-progress="10"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="content-box">
+                    <div class="box-title">Model Status</div>
+                    <div class="box-tagline">Model Information And Status</div>
+
+                    <!-- Status Panel Container -->
+                    <div class="status-panel-container">
+                        <!-- Status Information Line -->
+                        <div class="status-info-line">
+                            <div class="status-info-item">
+                                <span class="status-label">Training Samples :</span>
+                                <span class="status-value" id="training-samples">-</span>
+                            </div>
+                            <div class="status-info-item">
+                                <span class="status-label">Validation Samples :</span>
+                                <span class="status-value" id="validation-samples">-</span>
+                            </div>
+                            <div class="status-info-item">
+                                <span class="status-label">Test Samples :</span>
+                                <span class="status-value" id="test-samples">-</span>
+                            </div>
+                        </div>
+                        
+                        <div class="status-box"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Performance Tab Content -->
+        <div class="tab-content" id="performance-content">
+            <!-- Row 1: 2 box -->
+            <div class="content-row">
+                <div class="content-box">
+                    <div class="box-title">Live Accuracy</div>
+                    <div class="box-tagline">Model Training Accuracy</div>
+                    <div class="chart-container">
+                        <canvas id="accuracy-chart"></canvas>
+                    </div>
+                </div>
+                <div class="content-box">
+                    <div class="box-title">Live Loss</div>
+                    <div class="box-tagline">Model Training Loss</div>
+                    <div class="chart-container">
+                        <canvas id="loss-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Row 2: 2 boxes -->
+            <div class="content-row">
+                <div class="content-box">
+                    <div class="box-title">F1 Score</div>
+                    <div class="box-tagline">Balanced Classification Power</div>
+                    <div class="chart-container">
+                        <canvas id="f1-chart"></canvas>
+                    </div>
+                </div>
+                <div class="content-box">
+                    <div class="box-title">Overall Model Precision Recall</div>
+                    <div class="box-tagline">Model Strength to Find the Right Answers and Avoids the Wrong Ones</div>
+                    <div class="chart-container">
+                        <canvas id="precision-recall-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Row 3: 2 boxes -->
+            <div class="content-row">
+                <div class="content-box">
+                    <div class="box-title">Gender Fairness</div>
+                    <div class="box-tagline">Classification Accuracy for Binary Gender (Male, Female)</div>
+                    <div class="chart-container">
+                        <canvas id="gender-fairness-chart"></canvas>
+                    </div>
+                </div>
+                <div class="content-box">
+                    <div class="box-title">Age Fairness</div>
+                    <div class="box-tagline">Classification Accuracy for 6 Age Generations</div>
+                    <div class="chart-container">
+                        <canvas id="age-fairness-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Attack Tab Content -->
+        <div class="tab-content" id="attack-content">
+            <!-- Row 1: 1 box -->
+            <div class="content-row">
+                <div class="content-box">
+                    <div class="box-title">Model Architecture</div>
+                    <div class="box-tagline">Server and Client Components</div>
+                    
+                    <!-- Architecture Visualization Container -->
+                    <div class="architecture-visualization">
+                        <!-- Architecture Background Container -->
+                        <div class="architecture-background">
+                            <!-- Connection Lines SVG -->
+                            <svg class="connections-svg">
+                                <!-- Server to Age Inference - Send Line -->
+                                <line class="connection-line send-line" id="server-age-line-send" x1="0" y1="0" x2="0" y2="0"></line>
+                                <!-- Server to Age Inference - Receive Line -->
+                                <line class="connection-line receive-line" id="server-age-line-receive" x1="0" y1="0" x2="0" y2="0"></line>
+                                
+                                <!-- Server to Gender Inference - Send Line -->
+                                <line class="connection-line send-line" id="server-gender-line-send" x1="0" y1="0" x2="0" y2="0"></line>
+                                <!-- Server to Gender Inference - Receive Line -->
+                                <line class="connection-line receive-line" id="server-gender-line-receive" x1="0" y1="0" x2="0" y2="0"></line>
+                                
+                                <!-- Server to Image Client - Send Line -->
+                                <line class="connection-line send-line client-line" id="server-image-line-send" x1="0" y1="0" x2="0" y2="0"></line>
+                                <!-- Server to Image Client - Receive Line -->
+                                <line class="connection-line receive-line client-line" id="server-image-line-receive" x1="0" y1="0" x2="0" y2="0"></line>
+                                
+                                <!-- Server to Tabular Client - Send Line -->
+                                <line class="connection-line send-line client-line" id="server-tabular-line-send" x1="0" y1="0" x2="0" y2="0"></line>
+                                <!-- Server to Tabular Client - Receive Line -->
+                                <line class="connection-line receive-line client-line" id="server-tabular-line-receive" x1="0" y1="0" x2="0" y2="0"></line>
+                            </svg>
+                            
+                            <!-- Draggable Components -->
+                            <!-- Server Component -->
+                            <div class="draggable-component server-component" id="server-component">
+                                <div class="defense-indicator" id="defense-indicator">
+                                    <img src="/asset/defense-icon.svg" alt="Defense Active" class="defense-icon">
+                                </div>
+                                <div class="component-icon">
+                                    <img src="/asset/server-icon.svg" alt="Server" class="icon-svg">
+                                </div>
+                                <div class="component-label">Server</div>
+                            </div>
+                            
+                            <!-- Age Inference Component -->
+                            <div class="draggable-component inference-component" id="age-inference">
+                                <div class="component-icon">
+                                    <img src="/asset/infrence-icon.svg" alt="Age Inference" class="icon-svg">
+                                </div>
+                                <div class="component-label">Age Inference</div>
+                            </div>
+                            
+                            <!-- Gender Inference Component -->
+                            <div class="draggable-component inference-component" id="gender-inference">
+                                <div class="component-icon">
+                                    <img src="/asset/infrence-icon.svg" alt="Gender Inference" class="icon-svg">
+                                </div>
+                                <div class="component-label">Gender Inference</div>
+                            </div>
+                            
+                            <!-- Image Client Component -->
+                            <div class="draggable-component client-component" id="image-client">
+                                <div class="component-icon">
+                                    <img src="/asset/image-icon.svg" alt="Image Client" class="icon-svg">
+                                </div>
+                                <div class="component-label">Image Client</div>
+                            </div>
+                            
+                            <!-- Tabular Client Component -->
+                            <div class="draggable-component client-component" id="tabular-client">
+                                <div class="component-icon">
+                                    <img src="/asset/tabular-icon.svg" alt="Tabular Client" class="icon-svg">
+                                </div>
+                                <div class="component-label">Tabular Client</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Row 2: 2 boxes -->
+            <div class="content-row">
+                <div class="content-box">
+                    <div class="box-title">Gender Leakage</div>
+                    <div class="box-tagline">For Binary Gender, Best Score = 50%</div>
+                </div>
+                <div class="content-box">
+                    <div class="box-title">Age Leakage</div>
+                    <div class="box-tagline">For 5 Generation Age Split, Best Score = 20%</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Defense Tab Content -->
+        <div class="tab-content" id="defense-content">
+            <!-- Row 1: 1 box -->
+            <div class="content-row">
+                <div class="content-box">
+                    <div class="box-title">Defense Panel</div>
+                    <div class="box-tagline">Start Or Stop The Protection</div>
+                    
+                    <!-- Protection Control Buttons -->
+                    <div class="protection-controls">
+                        <button class="protection-btn run-protection" data-action="run">
+                            <div class="protection-btn-content">
+                                <div class="protection-btn-title">Run Protection</div>
+                                <div class="protection-btn-tagline">Confuse Data Inference to Guess Sensitive Information</div>
+                                <span class="protection-icon">▶</span>
+                            </div>
+                        </button>
+                        <button class="protection-btn stop-protection selected" data-action="stop">
+                            <div class="protection-btn-content">
+                                <div class="protection-btn-title">Stop Protection</div>
+                                <div class="protection-btn-tagline">Data Inference Guessing Without Protection</div>
+                                <span class="protection-icon">⏸</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Protection Scores Container -->
+                    <div class="protection-scores">
+                        <div class="metrics-container">
+                            <div class="scores-header">
+                                <div class="scores-title">Protection Scores</div>
+                                <div class="scores-tagline">Model Success to Protect Patients Sensitive Information</div>
+                            </div>
+                            
+                            <div class="metrics-grid">
+                                <div class="metric-box" id="age-protection">
+                                    <div class="metric-label">Age Protection</div>
+                                    <div class="metric-value">-</div>
+                                </div>
+                                <div class="metric-box" id="gender-protection">
+                                    <div class="metric-label">Gender Protection</div>
+                                    <div class="metric-value">-</div>
+                                </div>
+                                <div class="metric-box" id="age-leakage">
+                                    <div class="metric-label">Age Leakage</div>
+                                    <div class="metric-value">-</div>
+                                </div>
+                                <div class="metric-box" id="gender-leakage">
+                                    <div class="metric-label">Gender leakage</div>
+                                    <div class="metric-value">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Row 2: 1 box -->
+            <div class="content-row">
+                <div class="content-box">
+                    <div class="box-title">Defense Strength</div>
+                    <div class="box-tagline">Protection Head Invert Loss</div>
+                    <div class="chart-container">
+                        <canvas id="defense-strength-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html> 
