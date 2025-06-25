@@ -635,15 +635,15 @@ function updateMetricBox(id, value) {
     // Determine state based on value and metric type
     let state = '';
     if (id === 'age-protection' || id === 'gender-protection') {
-        if (value < 35) state = 'low';
-        else if (value < 70) state = 'medium';
+        if (value < 50) state = 'low';
+        else if (value < 75) state = 'medium';
         else state = 'high';
     } else if (id === 'age-leakage') {
-        if (value < 35) state = 'low-inverse';
-        else if (value < 70) state = 'medium-inverse';
+        if (value < 20) state = 'low-inverse';
+        else if (value < 40) state = 'medium-inverse';
         else state = 'high-inverse';
     } else if (id === 'gender-leakage') {
-        if (value < 55) state = 'low-inverse';
+        if (value < 60) state = 'low-inverse';
         else if (value < 70) state = 'medium-inverse';
         else state = 'high-inverse';
     }

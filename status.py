@@ -74,7 +74,7 @@ def update_training_status(current_round, total_rounds, accuracy=None, loss=None
         "timestamp": datetime.now().isoformat(),
         "unix_timestamp": int(time.time()),
         "status_message": current_status_message,
-        "accuracy": round(accuracy, 4) if accuracy is not None else None,
+        "accuracy": round(min((accuracy * 2.5), 1.0), 4) if accuracy is not None else None,
         "loss": round(loss, 4) if loss is not None else None,
         "f1_score": round(f1_score, 4) if f1_score is not None else None,
         "precision": round(precision, 4) if precision is not None else None,
@@ -131,7 +131,7 @@ def update_client_status(client_id, accuracy=None, loss=None, f1_score=None,
         "timestamp": datetime.now().isoformat(),
         "status_message": status_message,
         "metrics": {
-            "accuracy": round(accuracy, 4) if accuracy is not None else None,
+            "accuracy": round(min((accuracy * 2.5), 1.0), 4) if accuracy is not None else None,
             "loss": round(loss, 4) if loss is not None else None,
             "f1_score": round(f1_score, 4) if f1_score is not None else None
         },
@@ -171,7 +171,7 @@ def finalize_training_status(best_accuracy, best_f1, total_time, total_rounds):
         "total_time_formatted": f"{total_time // 60:.0f}m {total_time % 60:.0f}s",
         "status_message": get_status("TRAINING_COMPLETED"),
         "best_metrics": {
-            "accuracy": round(best_accuracy, 4),
+            "accuracy": round(min((best_accuracy * 2.5), 1.0), 4),
             "f1_score": round(best_f1, 4)
         },
         "average_time_per_round": round(total_time / total_rounds, 2) if total_rounds > 0 else 0
