@@ -7,8 +7,16 @@ import os
 import random
 import json
 from datetime import datetime
+import subprocess
+import signal
+import platform
+import atexit
+
+# Import status configuration
+from status_config import get_status, get_training_status, get_completion_status, get_evaluation_status, get_phase_status, get_federation_status
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
+app.config['SECRET_KEY'] = 'your-secret-key-here'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Global variables for dashboard state
@@ -19,13 +27,27 @@ training_timer = 0
 data_monitor_thread = None
 last_round_seen = 0
 
-# Configuration states
+# Timer control variables
+timer_running = False
+timer_start_time = None
+timer_pause_time = None
+timer_elapsed_seconds = 0
+
+# Process management variables
+server_process = None
+image_client_process = None
+tabular_client_process = None
+processes_running = False
+
+# Configuration state with status tracking
 current_config = {
-    'data_percentage': 5.0,
-    'federated_rounds': 2,
-    'epochs_per_round': 2,
+    'data_percentage': 5,      # Default 5%
+    'federated_rounds': 5,     # Default 5 rounds
+    'epochs_per_round': 5,     # Default 5 epochs
     'current_round': 0,
-    'progress': 0.0
+    'progress': 0,
+    'current_status': get_status('DASHBOARD_READY'),
+    'detailed_status': 'Ready to start federated learning training'
 }
 
 # Live metrics storage
@@ -71,19 +93,22 @@ def read_fl_status():
             with open(status_file, 'r') as f:
                 data = json.load(f)
             
+            # Debug: Print key status info
+            print(f"🔍 Status: training_active={data.get('training_active')}, round={data.get('current_round')}, accuracy={data.get('accuracy')}")
+            
             return {
-                'training_active': data.get('status') in ['running', 'training'],
+                'training_active': data.get('training_active', False) or data.get('status') in ['running', 'training'],
                 'current_round': data.get('current_round', 0),
                 'total_rounds': data.get('total_rounds', 2),
-                'accuracy': data.get('metrics', {}).get('accuracy', 0) * 100 if data.get('metrics', {}).get('accuracy') else 0,
-                'loss': data.get('metrics', {}).get('loss', 0),
-                'f1_score': data.get('metrics', {}).get('f1_score', 0) * 100 if data.get('metrics', {}).get('f1_score') else 0,
-                'precision_recall': data.get('metrics', {}).get('precision_recall', 0) * 100 if data.get('metrics', {}).get('precision_recall') else 0,
-                'gender_fairness': data.get('metrics', {}).get('gender_fairness', [0.0, 0.0]),
-                'age_fairness': data.get('metrics', {}).get('age_fairness', [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-                'age_leakage': data.get('metrics', {}).get('age_leakage', 16.67),
-                'gender_leakage': data.get('metrics', {}).get('gender_leakage', 50.0),
-                'defense_strength': data.get('metrics', {}).get('defense_strength', 0) if data.get('metrics', {}).get('defense_strength') else 0,
+                'accuracy': data.get('accuracy', 0) * 100 if data.get('accuracy') else 0,
+                'loss': data.get('loss', 0),
+                'f1_score': data.get('f1_score', 0) * 100 if data.get('f1_score') else 0,
+                'precision_recall': data.get('precision_recall', 0) * 100 if data.get('precision_recall') else 0,
+                'gender_fairness': data.get('gender_fairness', [0.0, 0.0]),
+                'age_fairness': data.get('age_fairness', [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+                'age_leakage': data.get('age_leakage', 16.67),
+                'gender_leakage': data.get('gender_leakage', 50.0),
+                'defense_strength': data.get('defense_strength', 0) if data.get('defense_strength') else 0,
                 'progress_percent': data.get('progress_percent', 0),
                 'phase': data.get('phase', 'waiting'),
                 'timestamp': data.get('timestamp', datetime.now().isoformat()),
@@ -96,7 +121,7 @@ def read_fl_status():
         return None
 
 def monitor_fl_training():
-    """Monitor FL training data from status.json file"""
+    """Monitor FL training data from status.json file with enhanced status tracking"""
     global training_active, last_round_seen, current_config, live_metrics
     
     while True:
@@ -107,7 +132,19 @@ def monitor_fl_training():
                 # Update training status
                 if fl_status['training_active'] and not training_active:
                     training_active = True
+                    start_timer()  # Start timer when training begins
                     print("🚀 FL Training detected - Dashboard now monitoring")
+                    
+                    # Update status based on phase
+                    if fl_status['phase'] == 'initial_training':
+                        update_status('PHASE_1')
+                    elif fl_status['phase'] == 'training':
+                        update_status('PHASE_2')
+                    elif fl_status['phase'] == 'evaluation':
+                        update_status('PHASE_3')
+                    else:
+                        update_status('TRAINING_START', mode='Federated Learning')
+                    
                     # Clear mock data when real FL training starts
                     live_metrics['performance']['live_accuracy'] = []
                     live_metrics['performance']['live_loss'] = []
@@ -118,22 +155,45 @@ def monitor_fl_training():
                     live_metrics['attack']['gender_leakage'] = []
                     last_round_seen = 0  # Reset round counter
                     print("🧹 Cleared mock data - ready for real FL data")
+                    
                 elif not fl_status['training_active'] and training_active:
                     training_active = False
-                    print("⏹️ FL Training stopped")
+                    pause_timer()  # Pause timer when training finishes
+                    update_status('TRAINING_COMPLETED')
+                    print("⏹️ FL Training completed - Timer paused")
                 
                 # Update current round and config
                 current_config['current_round'] = fl_status['current_round']
                 current_config['federated_rounds'] = fl_status['total_rounds']
                 current_config['progress'] = fl_status['progress_percent']
                 
-                # Update training status messages
+                # Update detailed status based on training phase
                 if training_active:
-                    live_metrics['home']['training_status'] = f"FL Training Round {fl_status['current_round']} - {fl_status['phase']}"
-                    live_metrics['home']['status_line2'] = f"Accuracy: {fl_status['accuracy']:.2f}% | Loss: {fl_status['loss']:.4f} | F1: {fl_status['f1_score']:.2f}% | P-R: {fl_status['precision_recall']:.2f}%"
+                    if fl_status['phase'] == 'initial_training':
+                        update_detailed_status("Clients performing initial local training")
+                        update_status('CLIENT_TRAINING')
+                    elif fl_status['phase'] == 'training':
+                        if fl_status['current_round'] > 0:
+                            update_status('TRAINING_ROUND', 
+                                        mode='Federated Learning',
+                                        round=fl_status['current_round'],
+                                        total_rounds=fl_status['total_rounds'])
+                            update_detailed_status(f"Training global model - Round {fl_status['current_round']}/{fl_status['total_rounds']}")
+                        else:
+                            update_status('GLOBAL_TRAINING')
+                            update_detailed_status("Training global fusion model")
+                    elif fl_status['phase'] == 'evaluation':
+                        update_status('EVALUATING', mode='Global')
+                        update_detailed_status("Evaluating final model performance")
+                    elif fl_status['phase'] == 'inference_attacks':
+                        update_status('INFERENCE_ATTACKS')
+                        update_detailed_status("Analyzing privacy leakage through inference attacks")
+                    elif fl_status['phase'] == 'completed':
+                        update_status('TRAINING_COMPLETED')
+                        update_detailed_status("Federated learning completed successfully")
                 else:
-                    live_metrics['home']['training_status'] = "Waiting for FL training to start..."
-                    live_metrics['home']['status_line2'] = "Run 'python server.py' to start DistributedVFL training"
+                    update_status('WAITING_FOR_TRAINING')
+                    update_detailed_status("Ready to start federated learning training")
                 
                 # Add new data point when a round completes
                 if fl_status['current_round'] > last_round_seen and fl_status['current_round'] > 0:
@@ -143,6 +203,13 @@ def monitor_fl_training():
                     print(f"🎯 F1 Score: {fl_status['f1_score']:.2f}%")
                     print(f"🎯 Precision-Recall: {fl_status['precision_recall']:.2f}%")
                     print(f"🛡️ Defense Strength: {fl_status['defense_strength']:.2f}%")
+                    print(f"🔍 Last round seen: {last_round_seen}, Current round: {fl_status['current_round']}")
+                    
+                    # Update status for round completion
+                    update_status('ROUND_COMPLETED', 
+                                mode='Federated Learning',
+                                round=fl_status['current_round'],
+                                total_rounds=fl_status['total_rounds'])
                     
                     # Add to performance metrics
                     live_metrics['performance']['live_accuracy'].append(fl_status['accuracy'])
@@ -151,6 +218,12 @@ def monitor_fl_training():
                     live_metrics['performance']['precision_recall'].append(fl_status['precision_recall'])
                     live_metrics['performance']['gender_accuracy'] = fl_status['gender_fairness']  # Replace, not append
                     live_metrics['performance']['age_accuracy'] = fl_status['age_fairness']  # Replace, not append
+                    
+                    # Debug: Print accumulated metrics
+                    print(f"🔍 Accumulated accuracy data: {live_metrics['performance']['live_accuracy']}")
+                    print(f"🔍 Accumulated loss data: {live_metrics['performance']['live_loss']}")
+                    print(f"🔍 Accumulated F1 data: {live_metrics['performance']['f1_score']}")
+                    print(f"🔍 Accumulated P-R data: {live_metrics['performance']['precision_recall']}")
                     
                     # Add to attack metrics (leakage data)
                     live_metrics['attack']['age_leakage'].append(fl_status['age_leakage'])
@@ -176,30 +249,41 @@ def monitor_fl_training():
                     last_round_seen = fl_status['current_round']
                     
                     # Emit update to all connected clients
-                    socketio.emit('live_update', {
+                    socketio.emit('fl_data_update', {
                         'config': current_config,
                         'metrics': live_metrics,
                         'training_active': training_active,
-                        'fl_status': fl_status
+                        'fl_status': fl_status,
+                        'timer_elapsed': get_elapsed_time(),
+                        'timer_running': timer_running
                     })
-                
-                # Generate some mock data for attack charts only
-                if training_active:
-                    # Mock data generation removed - now using real leakage data from inference attacks
-                    pass
+                    
+                    # Also emit individual metric updates
+                    socketio.emit('fairness_update', {
+                        'gender_fairness': fl_status['gender_fairness'],
+                        'age_fairness': fl_status['age_fairness']
+                    })
+                    
+                    socketio.emit('leakage_update', {
+                        'gender_leakage': fl_status['gender_leakage'],
+                        'age_leakage': fl_status['age_leakage']
+                    })
             
             else:
                 # No status file found
                 if training_active:
                     training_active = False
-                    live_metrics['home']['training_status'] = "No FL training detected"
-                    live_metrics['home']['status_line2'] = "Status file not found - start FL training first"
+                    pause_timer()
+                    update_status('ERROR_LOADING')
+                    update_detailed_status("Status file not found - start FL training first")
             
             # Emit regular updates to keep dashboard synchronized
-            socketio.emit('dashboard_update', {
+            socketio.emit('fl_data_update', {
                 'config': current_config,
                 'metrics': live_metrics,
-                'training_active': training_active
+                'training_active': training_active,
+                'timer_elapsed': get_elapsed_time(),
+                'timer_running': timer_running
             })
             
         except Exception as e:
@@ -225,7 +309,9 @@ def handle_connect():
         'current_tab': current_tab,
         'config': current_config,
         'metrics': live_metrics,
-        'training_active': training_active
+        'training_active': training_active,
+        'timer_elapsed': get_elapsed_time(),
+        'timer_running': timer_running
     })
 
 @socketio.on('switch_tab')
@@ -242,28 +328,114 @@ def handle_config_update(data):
     config_type = data.get('type')
     value = data.get('value')
     
-    if config_type in ['data_percentage', 'federated_rounds', 'epochs_per_round']:
-        current_config[config_type] = value
-        emit('config_updated', {
-            'type': config_type,
-            'value': value
-        }, broadcast=True)
+    # Only allow config changes when not running
+    if processes_running:
+        emit('config_error', {
+            'message': 'Cannot change configuration while training is running',
+            'type': config_type
+        })
+        return
+    
+    if config_type == 'data_percentage':
+        current_config['data_percentage'] = value
+        print(f"📊 Data percentage updated to: {value}%")
+    elif config_type == 'federated_rounds':
+        current_config['federated_rounds'] = value
+        print(f"🔄 Federated rounds updated to: {value}")
+    elif config_type == 'epochs_per_round':
+        current_config['epochs_per_round'] = value
+        print(f"📈 Epochs per round updated to: {value}")
+    
+    # Broadcast updated config to all clients
+    emit('config_updated', {
+        'type': config_type,
+        'value': value,
+        'full_config': current_config
+    }, broadcast=True)
+    
+    print(f"⚙️ Current config: {current_config}")
 
 @socketio.on('training_control')
 def handle_training_control(data):
-    """Handle training control - Note: This dashboard monitors external FL training"""
+    """Handle training control - Start/Stop server and clients"""
+    global processes_running
+    
     action = data.get('action')
     
     if action == 'play':
-        emit('training_message', {
-            'message': 'To start FL training, run "python server.py" in terminal',
-            'type': 'info'
-        })
+        if not processes_running:
+            print(f"🎮 Starting FL training with config: {current_config}")
+            
+            # Update status and start timer
+            update_status('INITIALIZING_SERVER')
+            start_timer()
+            
+            success = start_server_process()
+            if success:
+                update_status('WAITING_FOR_CLIENTS')
+                emit('training_status', {
+                    'status': 'starting',
+                    'message': f'Starting server with {current_config["data_percentage"]}% data, {current_config["federated_rounds"]} rounds, {current_config["epochs_per_round"]} epochs',
+                    'config': current_config,
+                    'timer_running': True,
+                    'timer_elapsed': get_elapsed_time()
+                }, broadcast=True)
+            else:
+                # Reset timer on failure
+                reset_timer()
+                update_status('ERROR_SERVER')
+                emit('training_status', {
+                    'status': 'error',
+                    'message': 'Failed to start server process',
+                    'config': current_config,
+                    'timer_running': False,
+                    'timer_elapsed': get_elapsed_time()
+                }, broadcast=True)
+        else:
+            emit('training_status', {
+                'status': 'already_running',
+                'message': 'Training is already running',
+                'config': current_config,
+                'timer_running': timer_running,
+                'timer_elapsed': get_elapsed_time()
+            })
+            
     elif action == 'stop':
-        emit('training_message', {
-            'message': 'To stop FL training, press Ctrl+C in the server terminal',
-            'type': 'info'
-        })
+        if processes_running:
+            print("🛑 Stopping FL training")
+            
+            # Pause timer and update status
+            pause_timer()
+            update_status('TRAINING_STOPPED')
+            
+            success = stop_all_processes()
+            if success:
+                emit('training_status', {
+                    'status': 'stopped',
+                    'message': 'All processes stopped successfully',
+                    'config': current_config,
+                    'timer_running': False,
+                    'timer_elapsed': get_elapsed_time()
+                }, broadcast=True)
+            else:
+                emit('training_status', {
+                    'status': 'error',
+                    'message': 'Error stopping some processes',
+                    'config': current_config,
+                    'timer_running': False,
+                    'timer_elapsed': get_elapsed_time()
+                }, broadcast=True)
+        else:
+            # Reset timer when stop is clicked and nothing is running
+            reset_timer()
+            update_status('DASHBOARD_READY')
+            emit('training_status', {
+                'status': 'already_stopped',
+                'message': 'Training is not running',
+                'config': current_config,
+                'timer_running': False,
+                'timer_elapsed': get_elapsed_time()
+            })
 
 @socketio.on('defence_control')
 def handle_defence_control(data):
@@ -284,13 +456,330 @@ def handle_defence_control(data):
             'message': 'Protection stopped - Data inference without protection'
         }, broadcast=True)
 
+def kill_process_on_port(port=5050):
+    """Kill any existing process running on the specified port."""
+    try:
+        import psutil
+        print(f"🔍 Checking for existing processes on port {port}...")
+        
+        # Find processes using the port
+        for proc in psutil.process_iter(['pid', 'name', 'connections']):
+            try:
+                connections = proc.info['connections']
+                if connections:
+                    for conn in connections:
+                        if hasattr(conn, 'laddr') and conn.laddr and conn.laddr.port == port:
+                            print(f"🔪 Killing process {proc.info['pid']} ({proc.info['name']}) on port {port}")
+                            proc.kill()
+                            proc.wait(timeout=3)
+                            print(f"✅ Process {proc.info['pid']} killed successfully")
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+                
+    except ImportError:
+        # Fallback method using lsof and kill
+        print(f"🔍 Using lsof to check port {port}...")
+        try:
+            # Find process using the port
+            result = subprocess.run(['lsof', '-ti', f':{port}'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and result.stdout.strip():
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    if pid:
+                        print(f"🔪 Killing process {pid} on port {port}")
+                        subprocess.run(['kill', '-9', pid], timeout=5)
+                        print(f"✅ Process {pid} killed successfully")
+            else:
+                print(f"✅ No existing process found on port {port}")
+        except subprocess.TimeoutExpired:
+            print(f"⚠️ Timeout while checking port {port}")
+        except FileNotFoundError:
+            print(f"⚠️ lsof command not found, skipping port cleanup")
+        except Exception as e:
+            print(f"⚠️ Error during port cleanup: {e}")
+    except Exception as e:
+        print(f"⚠️ Error during port cleanup: {e}")
+
 def open_browser():
-    """Open browser after a short delay"""
-    time.sleep(1.5)
+    """Open browser after a short delay."""
+    time.sleep(2)
     webbrowser.open('http://localhost:5050')
+
+def get_terminal_command():
+    """Get platform-specific terminal command."""
+    system = platform.system().lower()
+    if system == 'darwin':  # macOS
+        return 'osascript -e \'tell app "Terminal" to do script "{}"\''.format
+    elif system == 'linux':
+        return 'gnome-terminal -- bash -c "{}"'.format
+    elif system == 'windows':
+        return 'start cmd /k "{}"'.format
+    else:
+        return 'bash -c "{}"'.format  # Fallback
+
+def start_server_process():
+    """Start the FL server process in a separate terminal."""
+    global server_process, processes_running
+    
+    try:
+        # Get current working directory
+        current_dir = os.getcwd()
+        
+        # Create command with current configuration
+        cmd = f"cd '{current_dir}' && python3 server.py --data_percentage={current_config['data_percentage']} --fl_rounds={current_config['federated_rounds']} --epochs_per_round={current_config['epochs_per_round']}"
+        
+        # Get platform-specific terminal command
+        terminal_cmd = get_terminal_command()
+        full_cmd = terminal_cmd(cmd)
+        
+        print(f"🚀 Starting server with command: {cmd}")
+        print(f"🖥️ Terminal command: {full_cmd}")
+        
+        # Start server in new terminal
+        if platform.system().lower() == 'darwin':  # macOS
+            server_process = subprocess.Popen(['osascript', '-e', f'tell app "Terminal" to do script "{cmd}"'])
+        elif platform.system().lower() == 'linux':
+            server_process = subprocess.Popen(['gnome-terminal', '--', 'bash', '-c', cmd])
+        elif platform.system().lower() == 'windows':
+            server_process = subprocess.Popen(['start', 'cmd', '/k', cmd], shell=True)
+        else:
+            # Fallback - run in background
+            server_process = subprocess.Popen(['python3', 'server.py', 
+                                             f'--data_percentage={current_config["data_percentage"]}',
+                                             f'--fl_rounds={current_config["federated_rounds"]}',
+                                             f'--epochs_per_round={current_config["epochs_per_round"]}'],
+                                           cwd=current_dir)
+        
+        processes_running = True
+        print(f"✅ Server process started with PID: {server_process.pid}")
+        
+        # Schedule client startup after 5 seconds
+        threading.Timer(5.0, start_client_processes).start()
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error starting server: {e}")
+        return False
+
+def start_client_processes():
+    """Start client processes 5 seconds after server."""
+    global image_client_process, tabular_client_process
+    
+    try:
+        print("🔄 Starting client processes...")
+        
+        # Get current working directory
+        current_dir = os.getcwd()
+        
+        # Get platform-specific terminal command
+        terminal_cmd = get_terminal_command()
+        
+        # Start image client
+        image_cmd = f"cd '{current_dir}' && python3 image_client.py"
+        if platform.system().lower() == 'darwin':  # macOS
+            image_client_process = subprocess.Popen(['osascript', '-e', f'tell app "Terminal" to do script "{image_cmd}"'])
+        elif platform.system().lower() == 'linux':
+            image_client_process = subprocess.Popen(['gnome-terminal', '--', 'bash', '-c', image_cmd])
+        elif platform.system().lower() == 'windows':
+            image_client_process = subprocess.Popen(['start', 'cmd', '/k', image_cmd], shell=True)
+        else:
+            image_client_process = subprocess.Popen(['python3', 'image_client.py'], cwd=current_dir)
+        
+        print(f"✅ Image client started with PID: {image_client_process.pid}")
+        
+        # Start tabular client
+        tabular_cmd = f"cd '{current_dir}' && python3 tabular_client.py"
+        if platform.system().lower() == 'darwin':  # macOS
+            tabular_client_process = subprocess.Popen(['osascript', '-e', f'tell app "Terminal" to do script "{tabular_cmd}"'])
+        elif platform.system().lower() == 'linux':
+            tabular_client_process = subprocess.Popen(['gnome-terminal', '--', 'bash', '-c', tabular_cmd])
+        elif platform.system().lower() == 'windows':
+            tabular_client_process = subprocess.Popen(['start', 'cmd', '/k', tabular_cmd], shell=True)
+        else:
+            tabular_client_process = subprocess.Popen(['python3', 'tabular_client.py'], cwd=current_dir)
+        
+        print(f"✅ Tabular client started with PID: {tabular_client_process.pid}")
+        
+    except Exception as e:
+        print(f"❌ Error starting clients: {e}")
+
+def stop_all_processes():
+    """Stop all running processes."""
+    global server_process, image_client_process, tabular_client_process, processes_running
+    
+    try:
+        print("🛑 Stopping all processes...")
+        
+        # Stop server process
+        if server_process:
+            try:
+                if platform.system().lower() == 'windows':
+                    server_process.terminate()
+                else:
+                    server_process.kill()
+                server_process.wait(timeout=5)
+                print("✅ Server process stopped")
+            except Exception as e:
+                print(f"⚠️ Error stopping server: {e}")
+            server_process = None
+        
+        # Stop image client
+        if image_client_process:
+            try:
+                if platform.system().lower() == 'windows':
+                    image_client_process.terminate()
+                else:
+                    image_client_process.kill()
+                image_client_process.wait(timeout=5)
+                print("✅ Image client stopped")
+            except Exception as e:
+                print(f"⚠️ Error stopping image client: {e}")
+            image_client_process = None
+        
+        # Stop tabular client
+        if tabular_client_process:
+            try:
+                if platform.system().lower() == 'windows':
+                    tabular_client_process.terminate()
+                else:
+                    tabular_client_process.kill()
+                tabular_client_process.wait(timeout=5)
+                print("✅ Tabular client stopped")
+            except Exception as e:
+                print(f"⚠️ Error stopping tabular client: {e}")
+            tabular_client_process = None
+        
+        processes_running = False
+        print("✅ All processes stopped")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error stopping processes: {e}")
+        return False
+
+def clean_status_files():
+    """Clean old status files to prevent interference"""
+    status_dir = "status"
+    if not os.path.exists(status_dir):
+        os.makedirs(status_dir)
+    
+    # Remove any existing status files
+    status_file = os.path.join(status_dir, "status.json")
+    if os.path.exists(status_file):
+        os.remove(status_file)
+        print("🧹 Removed old status file")
+    
+    print("✅ Status directory cleaned for fresh start")
+
+def cleanup_on_exit():
+    """Cleanup function to run on dashboard exit."""
+    print("🧹 Dashboard shutting down - cleaning up processes...")
+    stop_all_processes()
+
+# Register cleanup function
+atexit.register(cleanup_on_exit)
+
+# Timer control functions
+def start_timer():
+    """Start or resume the training timer"""
+    global timer_running, timer_start_time, timer_pause_time
+    
+    if not timer_running:
+        if timer_pause_time is not None:
+            # Resume from pause
+            pause_duration = time.time() - timer_pause_time
+            timer_start_time += pause_duration
+            timer_pause_time = None
+        else:
+            # Fresh start
+            timer_start_time = time.time()
+        
+        timer_running = True
+        print(f"⏱️ Timer started")
+
+def pause_timer():
+    """Pause the training timer"""
+    global timer_running, timer_pause_time, timer_elapsed_seconds
+    
+    if timer_running:
+        timer_running = False
+        timer_pause_time = time.time()
+        timer_elapsed_seconds = timer_pause_time - timer_start_time
+        print(f"⏸️ Timer paused at {format_time(timer_elapsed_seconds)}")
+
+def reset_timer():
+    """Reset the training timer to 00:00:00"""
+    global timer_running, timer_start_time, timer_pause_time, timer_elapsed_seconds
+    
+    timer_running = False
+    timer_start_time = None
+    timer_pause_time = None
+    timer_elapsed_seconds = 0
+    print(f"🔄 Timer reset to 00:00:00")
+
+def get_elapsed_time():
+    """Get current elapsed time in seconds"""
+    global timer_running, timer_start_time, timer_elapsed_seconds
+    
+    if timer_start_time is None:
+        return 0
+    
+    if timer_running:
+        return time.time() - timer_start_time
+    else:
+        return timer_elapsed_seconds
+
+def format_time(seconds):
+    """Format seconds into HH:MM:SS string"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds = int(seconds % 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+# Status update functions
+def update_status(status_key, **kwargs):
+    """Update the current status message"""
+    global current_config
+    
+    try:
+        new_status = get_status(status_key, **kwargs)
+        current_config['current_status'] = new_status
+        
+        # Emit status update to all connected clients
+        socketio.emit('status_update', {
+            'status': new_status,
+            'status_key': status_key,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        print(f"📋 Status: {new_status}")
+    except Exception as e:
+        print(f"❌ Error updating status: {e}")
+
+def update_detailed_status(message):
+    """Update the detailed status message"""
+    global current_config
+    
+    current_config['detailed_status'] = message
+    socketio.emit('detailed_status_update', {
+        'detailed_status': message,
+        'timestamp': datetime.now().isoformat()
+    })
+
+# Live metrics with enhanced status tracking
 
 if __name__ == '__main__':
     print("🚀 Starting HYBRIDVFL Dashboard...")
+    
+    # Clean status files for fresh start
+    clean_status_files()
+    
+    # Kill any existing process on port 5050
+    kill_process_on_port(5050)
+    
     print("📊 Dashboard will be available at: http://localhost:5050")
     print("📈 Monitoring DistributedVFL training status...")
     print("📁 Reading from: status/status.json")
@@ -303,18 +792,20 @@ if __name__ == '__main__':
     print("   4. Watch live accuracy updates in Performance tab!")
     print()
     
-    # Start FL monitoring thread
+    # Start background data monitoring
     data_monitor_thread = threading.Thread(target=monitor_fl_training, daemon=True)
     data_monitor_thread.start()
     
-    # Open browser in background
+    # Open browser after delay
     browser_thread = threading.Thread(target=open_browser, daemon=True)
     browser_thread.start()
     
-    # Run the Flask-SocketIO application
+    # Start Flask-SocketIO server
     try:
-        socketio.run(app, host='0.0.0.0', port=5050, debug=False, allow_unsafe_werkzeug=True)
+        socketio.run(app, host='0.0.0.0', port=5050, debug=False)
     except KeyboardInterrupt:
-        print("\n⏹️  Dashboard stopped by user")
+        print("\n🛑 Dashboard stopped by user")
     except Exception as e:
-        print(f"❌ Error starting dashboard: {e}") 
+        print(f"\n❌ Dashboard error: {e}")
+    finally:
+        cleanup_on_exit() 

@@ -564,6 +564,33 @@ body {
     width: 100%;
     margin-top: auto;
     margin-bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 20px;
+}
+
+.current-status {
+    width: 100%;
+}
+
+.status-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: #808080;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.status-message {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: #2C2C2C;
+    line-height: 1.3;
+    text-align: left;
 }
 
 /* Vertical Container for Rounds and Epochs */

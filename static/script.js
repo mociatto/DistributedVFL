@@ -4,6 +4,87 @@
 let socket;
 let charts = {};
 
+// Global timer variables
+let timerInterval = null;
+let timerRunning = false;
+let elapsedTime = 0; // in seconds
+
+// Global timer functions
+function startTimer() {
+    if (timerInterval) return; // Already running
+    
+    timerRunning = true;
+    timerInterval = setInterval(updateTimer, 1000);
+    console.log('Timer started');
+}
+
+function pauseTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        timerRunning = false;
+        console.log('Timer paused at:', elapsedTime, 'seconds');
+    }
+}
+
+function resetTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    timerRunning = false;
+    elapsedTime = 0;
+    updateTimeDisplay(0);
+    console.log('Timer reset to 00:00:00');
+}
+
+function updateTimer() {
+    if (timerRunning) {
+        elapsedTime += 1;
+        updateTimeDisplay(elapsedTime);
+    }
+}
+
+function setTimerFromServer(serverElapsed, serverRunning) {
+    console.log(`🔄 setTimerFromServer called with: elapsed=${serverElapsed}, running=${serverRunning}`);
+    
+    elapsedTime = Math.floor(serverElapsed) || 0;
+    timerRunning = serverRunning;
+    
+    console.log(`⏱️ Timer sync from server: ${elapsedTime}s, running: ${timerRunning}`);
+    
+    // Start or stop timer based on server state
+    if (serverRunning && !timerInterval) {
+        timerInterval = setInterval(updateTimer, 1000);
+        console.log('⏱️ Timer started from server sync');
+    } else if (!serverRunning && timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        console.log('⏱️ Timer stopped from server sync');
+    }
+    
+    updateTimeDisplay(elapsedTime);
+}
+
+function updateTimeDisplay(totalSeconds) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    const timeString = 
+        String(hours).padStart(2, '0') + ':' +
+        String(minutes).padStart(2, '0') + ':' +
+        String(seconds).padStart(2, '0');
+    
+    const display = document.querySelector('.time-display');
+    if (display) {
+        display.textContent = timeString;
+        console.log('⏰ Timer display updated:', timeString);
+    } else {
+        console.log('❌ Timer display element not found');
+    }
+}
+
 // Progress bar update function (for backend integration)
 function updateProgress(percentage) {
     const progressFill = document.querySelector('.progress-fill');
@@ -132,18 +213,21 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add selected class to clicked button
             this.classList.add('selected');
             
-            console.log('Selected percentage:', this.getAttribute('data-percentage') + '%');
+            const percentage = parseInt(this.getAttribute('data-percentage'));
+            console.log('Selected percentage:', percentage + '%');
+            
+            // Send configuration update to server
+            if (socket) {
+                socket.emit('update_config', {
+                    type: 'data_percentage',
+                    value: percentage
+                });
+            }
         });
     });
     
-    // Timer variables
-    let timerInterval = null;
-    let startTime = null;
-    let elapsedTime = 0; // in seconds
-    
     // Control button functionality
     const controlButtons = document.querySelectorAll('.control-btn');
-    const timeDisplay = document.querySelector('.time-display');
     
     controlButtons.forEach(button => {
         button.addEventListener('click', function() {
@@ -158,71 +242,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const action = this.getAttribute('data-action');
             console.log('Control action:', action);
             
-            // Handle timer based on action
-            if (action === 'play') {
-                startTimer();
-                // When training starts, backend will send actual sample counts
-                console.log('Training started - waiting for backend sample counts');
-            } else if (action === 'stop') {
-                resetTimer();
-                // Reset sample counts to default when training stops
-                resetSampleCounts();
+            // Send training control command to server
+            if (socket) {
+                socket.emit('training_control', {
+                    action: action
+                });
             }
+            
+            // Timer will be controlled by server responses
+            console.log(`${action} requested - server will handle timer and process management`);
         });
     });
     
-    // Timer functions
-    function startTimer() {
-        if (timerInterval) return; // Already running
-        
-        startTime = Date.now() - (elapsedTime * 1000);
-        timerInterval = setInterval(updateTimer, 1000);
-        console.log('Timer started');
-    }
+    // Timer functions are now global (defined above)
     
-    function stopTimer() {
-        if (timerInterval) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-            console.log('Timer stopped');
-        }
-    }
-    
-    function resetTimer() {
-        stopTimer();
-        elapsedTime = 0;
-        updateTimeDisplay(0);
-        console.log('Timer reset');
-    }
-    
-    function updateTimer() {
-        elapsedTime = Math.floor((Date.now() - startTime) / 1000);
-        updateTimeDisplay(elapsedTime);
-    }
-    
-    function updateTimeDisplay(totalSeconds) {
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        
-        const timeString = 
-            String(hours).padStart(2, '0') + ':' +
-            String(minutes).padStart(2, '0') + ':' +
-            String(seconds).padStart(2, '0');
-        
-        if (timeDisplay) {
-            timeDisplay.textContent = timeString;
-        }
-    }
-    
-    // Function to set time from backend (in seconds)
+    // Helper functions for setting time (kept for compatibility)
     function setRunningTime(totalSeconds) {
         elapsedTime = totalSeconds;
         updateTimeDisplay(totalSeconds);
         console.log('Running time set to:', totalSeconds, 'seconds');
     }
     
-    // Function to set time from backend (HH:MM:SS format)
     function setRunningTimeFromString(timeString) {
         const parts = timeString.split(':');
         if (parts.length === 3) {
@@ -289,14 +329,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 roundsInput.value = this.value;
                 updateSliderProgress(this, roundsTrack, roundsThumb, this.value);
                 console.log('Rounds set to:', this.value);
+                
+                // Send configuration update to server
+                if (socket) {
+                    socket.emit('update_config', {
+                        type: 'federated_rounds',
+                        value: parseInt(this.value)
+                    });
+                }
             });
             
             roundsInput.addEventListener('input', function() {
-                const value = Math.max(1, Math.min(100, parseInt(this.value) || 1));
+                const value = Math.max(1, Math.min(20, parseInt(this.value) || 1));
                 this.value = value;
                 roundsSlider.value = value;
                 updateSliderProgress(roundsSlider, roundsTrack, roundsThumb, value);
                 console.log('Rounds set to:', value);
+                
+                // Send configuration update to server
+                if (socket) {
+                    socket.emit('update_config', {
+                        type: 'federated_rounds',
+                        value: value
+                    });
+                }
             });
         }
         
@@ -309,14 +365,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 epochsInput.value = this.value;
                 updateSliderProgress(this, epochsTrack, epochsThumb, this.value);
                 console.log('Epochs set to:', this.value);
+                
+                // Send configuration update to server
+                if (socket) {
+                    socket.emit('update_config', {
+                        type: 'epochs_per_round',
+                        value: parseInt(this.value)
+                    });
+                }
             });
             
             epochsInput.addEventListener('input', function() {
-                const value = Math.max(1, Math.min(100, parseInt(this.value) || 1));
+                const value = Math.max(1, Math.min(20, parseInt(this.value) || 1));
                 this.value = value;
                 epochsSlider.value = value;
                 updateSliderProgress(epochsSlider, epochsTrack, epochsThumb, value);
                 console.log('Epochs set to:', value);
+                
+                // Send configuration update to server
+                if (socket) {
+                    socket.emit('update_config', {
+                        type: 'epochs_per_round',
+                        value: value
+                    });
+                }
             });
         }
     }
@@ -709,34 +781,123 @@ function initializeArchitectureVisualization() {
 // Socket.IO initialization and event handlers
 function initializeSocketIO() {
     socket = io();
+    console.log('🔌 Socket.IO connecting...');
     
     socket.on('connect', function() {
-        console.log('✅ Connected to FL server');
+        console.log('✅ Connected to dashboard server');
     });
     
     socket.on('disconnect', function() {
-        console.log('❌ Disconnected from FL server');
+        console.log('❌ Disconnected from dashboard server');
     });
     
+    // Configuration update confirmation
+    socket.on('config_updated', function(data) {
+        console.log('⚙️ Configuration updated:', data);
+        // Update UI to reflect current config if needed
+    });
+    
+    // Configuration error handling
+    socket.on('config_error', function(data) {
+        console.error('❌ Configuration error:', data.message);
+        alert('Configuration Error: ' + data.message);
+    });
+    
+    // Training status updates
+    socket.on('training_status', function(data) {
+        console.log('🎮 Training status:', data);
+        
+        const statusMessages = {
+            'starting': '🚀 Starting FL training...',
+            'stopped': '🛑 Training stopped',
+            'error': '❌ Error: ' + data.message,
+            'already_running': '⚠️ Training already running',
+            'already_stopped': '⚠️ Training not running'
+        };
+        
+        const message = statusMessages[data.status] || data.message;
+        
+        // Update UI status indicator
+        const statusMessage = document.getElementById('current-status-message');
+        if (statusMessage) {
+            statusMessage.textContent = message;
+        }
+        
+        // Update timer based on server response
+        if (data.timer_running !== undefined) {
+            console.log('🔄 Setting timer from training status:', data.timer_elapsed, data.timer_running);
+            setTimerFromServer(data.timer_elapsed || 0, data.timer_running);
+        }
+        
+        // Update progress if starting
+        if (data.status === 'starting') {
+            updateProgress(0);
+        }
+    });
+    
+    // Status message updates
+    socket.on('status_update', function(data) {
+        console.log('📋 Status update:', data);
+        
+        const statusMessage = document.getElementById('current-status-message');
+        if (statusMessage && data.status) {
+            statusMessage.textContent = data.status;
+        }
+    });
+    
+    // Detailed status updates
+    socket.on('detailed_status_update', function(data) {
+        console.log('📝 Detailed status update:', data);
+        
+        const statusMessage = document.getElementById('current-status-message');
+        if (statusMessage && data.detailed_status) {
+            statusMessage.textContent = data.detailed_status;
+        }
+    });
+    
+    // FL training data updates
+    socket.on('fl_data_update', function(data) {
+        console.log('📊 FL data update:', data);
+        updateChartsWithLiveData(data);
+        updateDashboardFromState(data);
+        
+        // Update timer from server data
+        if (data.timer_elapsed !== undefined && data.timer_running !== undefined) {
+            setTimerFromServer(data.timer_elapsed, data.timer_running);
+        }
+    });
+    
+    // Dashboard state updates (for compatibility)
     socket.on('dashboard_state', function(data) {
-        console.log('📊 Received dashboard state:', data);
+        console.log('📊 Dashboard state update:', data);
         updateDashboardFromState(data);
-        // Also update charts with initial data (should be empty arrays showing "Waiting for data...")
         updateChartsWithLiveData(data);
+        
+        // Update timer from initial state
+        if (data.timer_elapsed !== undefined && data.timer_running !== undefined) {
+            console.log('🔄 Setting timer from dashboard state:', data.timer_elapsed, data.timer_running);
+            setTimerFromServer(data.timer_elapsed, data.timer_running);
+        }
     });
     
+    // Live updates (for compatibility)
     socket.on('live_update', function(data) {
-        console.log('📈 Live FL update received:', data);
+        console.log('📈 Live update received:', data);
         updateChartsWithLiveData(data);
     });
     
-    socket.on('dashboard_update', function(data) {
-        console.log('🔄 Dashboard update:', data);
-        updateDashboardFromState(data);
+    // Fairness data updates
+    socket.on('fairness_update', function(data) {
+        console.log('⚖️ Fairness update:', data);
+        updateGenderFairnessChart(data.gender_fairness);
+        updateAgeFairnessChart(data.age_fairness);
     });
     
-    socket.on('training_message', function(data) {
-        console.log('💬 Training message:', data.message);
+    // Leakage data updates
+    socket.on('leakage_update', function(data) {
+        console.log('🔓 Leakage update:', data);
+        updateGenderLeakageChart(data.gender_leakage);
+        updateAgeLeakageChart(data.age_leakage);
     });
 }
 

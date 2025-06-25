@@ -1529,8 +1529,25 @@ def main():
                         help='Server port (overrides config)')
     parser.add_argument('--no-auto-shutdown', action='store_true',
                         help='Keep server running after FL completion (default: auto-shutdown)')
+    parser.add_argument('--data_percentage', type=int, default=5,
+                        help='Percentage of dataset to use (1-100, default: 5)')
+    parser.add_argument('--fl_rounds', type=int, default=5,
+                        help='Number of federated learning rounds (1-20, default: 5)')
+    parser.add_argument('--epochs_per_round', type=int, default=5,
+                        help='Number of epochs per round (1-20, default: 5)')
     
     args = parser.parse_args()
+    
+    # Validate arguments
+    if not (1 <= args.data_percentage <= 100):
+        print("❌ Error: data_percentage must be between 1 and 100")
+        sys.exit(1)
+    if not (1 <= args.fl_rounds <= 20):
+        print("❌ Error: fl_rounds must be between 1 and 20")
+        sys.exit(1)
+    if not (1 <= args.epochs_per_round <= 20):
+        print("❌ Error: epochs_per_round must be between 1 and 20")
+        sys.exit(1)
     
     # Configure auto-shutdown based on command line
     auto_shutdown_enabled = not args.no_auto_shutdown
@@ -1541,21 +1558,28 @@ def main():
     host = args.host or server_config['host']
     port = args.port or server_config['port']
     
+    # Override config with command line arguments
+    config = get_config()
+    config['data']['data_percentage'] = args.data_percentage / 100.0  # Convert to decimal
+    config['federated_learning']['total_fl_rounds'] = args.fl_rounds
+    config['federated_learning']['client_epochs_per_round'] = args.epochs_per_round
+    
     print(f"Starting Distributed FL Server in {args.mode} mode")
     print(f"Server: http://{host}:{port}")
     print(f"Strategy: Fusion-Guided Weight Updates")
+    print(f"Configuration:")
+    print(f"   Data percentage: {args.data_percentage}%")
+    print(f"   FL rounds: {args.fl_rounds}")
+    print(f"   Epochs per round: {args.epochs_per_round}")
     
     # Show shutdown configuration
     if auto_shutdown_enabled:
-        # Get FL rounds from config
-        config = get_config()
-        fl_rounds = config['federated_learning']['total_fl_rounds']
-        print(f"Auto-shutdown: ENABLED (after {fl_rounds} FL rounds)")
+        print(f"Auto-shutdown: ENABLED (after {args.fl_rounds} FL rounds)")
         print(f"Use --no-auto-shutdown to keep server running")
     else:
         print(f"Auto-shutdown: DISABLED (server will keep running)")
     
-    # Initialize server
+    # Initialize server with updated config
     initialize_server()
     
     # Start Flask server
