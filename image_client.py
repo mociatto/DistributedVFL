@@ -109,7 +109,7 @@ class DistributedImageClient:
             use_step3_enhancements (bool): Whether to use Step 3 generalization enhancements
             use_lightweight (bool): Whether to use lightweight EfficientNetB0 vs heavy EfficientNetV2S
         """
-        print("🏗️ Creating image encoder model...")
+        print("Creating image encoder model...")
         
         # Create enhanced image encoder
         self.encoder = create_image_encoder(
@@ -598,7 +598,7 @@ class DistributedImageClient:
                         
                     elif task_type == 'guided_training':
                         round_num = task_info.get('round', 0)
-                        print(f"\n🔄 RECEIVED TASK: Guided Training - Round {round_num}")
+                        print(f"\nRECEIVED TASK: Guided Training - Round {round_num}")
                         self.perform_guided_training(round_num)
                         
                     elif task_type == 'shutdown':

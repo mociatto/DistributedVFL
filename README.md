@@ -16,7 +16,7 @@ A **distributed federated learning system** for medical image analysis using the
 The system has **3 parts** that run on separate computers:
 
 ```
-🖥️ SERVER (Port 8080)          🖥️ IMAGE CLIENT (Port 8081)     🖥️ TABULAR CLIENT (Port 8082)
+SERVER (Port 8080)              IMAGE CLIENT (Port 8081)        TABULAR CLIENT (Port 8082)
 
 │ • Coordinates training │       │ • Processes images   │       │ • Processes data     │
 │ • Combines AI models   │  ←──→ │ • Has image files    │  ←──→ │ • Has CSV metadata   │

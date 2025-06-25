@@ -46,21 +46,21 @@ function updateTimer() {
 }
 
 function setTimerFromServer(serverElapsed, serverRunning) {
-    console.log(`🔄 setTimerFromServer called with: elapsed=${serverElapsed}, running=${serverRunning}`);
+    console.log(`setTimerFromServer called with: elapsed=${serverElapsed}, running=${serverRunning}`);
     
     elapsedTime = Math.floor(serverElapsed) || 0;
     timerRunning = serverRunning;
     
-    console.log(`⏱️ Timer sync from server: ${elapsedTime}s, running: ${timerRunning}`);
+    console.log(`Timer sync from server: ${elapsedTime}s, running: ${timerRunning}`);
     
     // Start or stop timer based on server state
     if (serverRunning && !timerInterval) {
         timerInterval = setInterval(updateTimer, 1000);
-        console.log('⏱️ Timer started from server sync');
+        console.log('Timer started from server sync');
     } else if (!serverRunning && timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
-        console.log('⏱️ Timer stopped from server sync');
+        console.log('Timer stopped from server sync');
     }
     
     updateTimeDisplay(elapsedTime);
@@ -79,9 +79,9 @@ function updateTimeDisplay(totalSeconds) {
     const display = document.querySelector('.time-display');
     if (display) {
         display.textContent = timeString;
-        console.log('⏰ Timer display updated:', timeString);
+        console.log('Timer display updated:', timeString);
     } else {
-        console.log('❌ Timer display element not found');
+        console.log('Timer display element not found');
     }
 }
 
@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeCharts();
     
     // Initialize defense metric boxes with default values
-    console.log('🛡️ Initializing defense metric boxes...');
+    console.log('Initializing defense metric boxes...');
     updateMetricBox('age-protection', 0);
     updateMetricBox('gender-protection', 0);
     updateMetricBox('age-leakage', 0);
@@ -882,38 +882,38 @@ function initializeArchitectureVisualization() {
 // Socket.IO initialization and event handlers
 function initializeSocketIO() {
     socket = io();
-    console.log('🔌 Socket.IO connecting...');
+    console.log('Socket.IO connecting...');
     
     socket.on('connect', function() {
-        console.log('✅ Connected to dashboard server');
+        console.log('Connected to dashboard server');
     });
     
     socket.on('disconnect', function() {
-        console.log('❌ Disconnected from dashboard server');
+        console.log('Disconnected from dashboard server');
     });
     
     // Configuration update confirmation
     socket.on('config_updated', function(data) {
-        console.log('⚙️ Configuration updated:', data);
+        console.log('Configuration updated:', data);
         // Update UI to reflect current config if needed
     });
     
     // Configuration error handling
     socket.on('config_error', function(data) {
-        console.error('❌ Configuration error:', data.message);
+        console.error('Configuration error:', data.message);
         alert('Configuration Error: ' + data.message);
     });
     
     // Training status updates
     socket.on('training_status', function(data) {
-        console.log('🎮 Training status:', data);
+        console.log('Training status:', data);
         
         const statusMessages = {
-            'starting': '🚀 Starting FL training...',
-            'stopped': '🛑 Training stopped',
-            'error': '❌ Error: ' + data.message,
-            'already_running': '⚠️ Training already running',
-            'already_stopped': '⚠️ Training not running'
+            'starting': 'Starting FL training...',
+            'stopped': 'Training stopped',
+            'error': 'Error: ' + data.message,
+            'already_running': 'Training already running',
+            'already_stopped': 'Training not running'
         };
         
         const message = statusMessages[data.status] || data.message;
@@ -926,7 +926,7 @@ function initializeSocketIO() {
         
         // Update timer based on server response
         if (data.timer_running !== undefined) {
-            console.log('🔄 Setting timer from training status:', data.timer_elapsed, data.timer_running);
+            console.log('Setting timer from training status:', data.timer_elapsed, data.timer_running);
             setTimerFromServer(data.timer_elapsed || 0, data.timer_running);
         }
         
@@ -938,7 +938,7 @@ function initializeSocketIO() {
     
     // Status message updates
     socket.on('status_update', function(data) {
-        console.log('📋 Status update:', data);
+        console.log('Status update:', data);
         
         const statusMessage = document.getElementById('current-status-message');
         if (statusMessage && data.status) {
@@ -948,7 +948,7 @@ function initializeSocketIO() {
     
     // Detailed status updates
     socket.on('detailed_status_update', function(data) {
-        console.log('📝 Detailed status update:', data);
+        console.log('Detailed status update:', data);
         
         const statusMessage = document.getElementById('current-status-message');
         if (statusMessage && data.detailed_status) {
@@ -958,7 +958,7 @@ function initializeSocketIO() {
     
     // FL training data updates
     socket.on('fl_data_update', function(data) {
-        console.log('📊 FL data update:', data);
+        console.log('FL data update:', data);
         updateChartsWithLiveData(data);
         updateDashboardFromState(data);
         
@@ -970,26 +970,26 @@ function initializeSocketIO() {
     
     // Dashboard state updates (for compatibility)
     socket.on('dashboard_state', function(data) {
-        console.log('📊 Dashboard state update:', data);
+        console.log('Dashboard state update:', data);
         updateDashboardFromState(data);
         updateChartsWithLiveData(data);
         
         // Update timer from initial state
         if (data.timer_elapsed !== undefined && data.timer_running !== undefined) {
-            console.log('🔄 Setting timer from dashboard state:', data.timer_elapsed, data.timer_running);
+            console.log('Setting timer from dashboard state:', data.timer_elapsed, data.timer_running);
             setTimerFromServer(data.timer_elapsed, data.timer_running);
         }
     });
     
     // Live updates (for compatibility)
     socket.on('live_update', function(data) {
-        console.log('📈 Live update received:', data);
+        console.log('Live update received:', data);
         updateChartsWithLiveData(data);
     });
     
     // Fairness data updates
     socket.on('fairness_update', function(data) {
-        console.log('⚖️ Fairness update:', data);
+        console.log('Fairness update:', data);
         if (typeof updateGenderFairnessChart === 'function') {
             updateGenderFairnessChart(data.gender_fairness);
         }
@@ -1000,7 +1000,7 @@ function initializeSocketIO() {
     
     // Leakage data updates
     socket.on('leakage_update', function(data) {
-        console.log('🔓 Leakage update:', data);
+        console.log('Leakage update:', data);
         if (typeof updateGenderLeakageChart === 'function') {
             updateGenderLeakageChart(data.gender_leakage);
         }
@@ -1011,7 +1011,7 @@ function initializeSocketIO() {
     
     // Sample counts updates
     socket.on('sample_counts_update', function(data) {
-        console.log('📊 Sample counts update:', data);
+        console.log('Sample counts update:', data);
         
         // Update the sample count display elements
         const trainingElement = document.getElementById('training-samples');
@@ -1028,7 +1028,7 @@ function initializeSocketIO() {
             testElement.textContent = data.test_samples || 0;
         }
         
-        console.log(`📊 Updated sample counts: Training=${data.training_samples}, Validation=${data.validation_samples}, Test=${data.test_samples}`);
+        console.log(`Updated sample counts: Training=${data.training_samples}, Validation=${data.validation_samples}, Test=${data.test_samples}`);
     });
 }
 
@@ -1039,7 +1039,7 @@ function initializeCharts() {
         id: 'emptyChart',
         afterDraw: function(chart) {
             if (chart.data.datasets[0].data.length === 0) {
-                console.log('📊 Empty chart detected, showing waiting message for:', chart.canvas.id);
+                console.log('Empty chart detected, showing waiting message for:', chart.canvas.id);
                 const ctx = chart.ctx;
                 const width = chart.width;
                 const height = chart.height;
@@ -1070,11 +1070,11 @@ function initializeCharts() {
 function initializeAccuracyChart() {
     const ctx = document.getElementById('accuracy-chart');
     if (!ctx) {
-        console.log('❌ Accuracy chart canvas not found');
+        console.log('Accuracy chart canvas not found');
         return;
     }
     
-    console.log('🔄 Initializing accuracy chart...');
+    console.log('Initializing accuracy chart...');
     
     charts.accuracy = new Chart(ctx, {
         type: 'line',
@@ -1159,7 +1159,7 @@ function initializeAccuracyChart() {
             }
         }
     });
-    console.log('✅ Accuracy chart initialized');
+    console.log('Accuracy chart initialized');
 }
 
 // Initialize loss chart
@@ -1245,7 +1245,7 @@ function initializeLossChart() {
             }
         }
     });
-    console.log('✅ Loss chart initialized');
+    console.log('Loss chart initialized');
 }
 
 // Initialize F1 chart
@@ -1332,7 +1332,7 @@ function initializeF1Chart() {
             }
         }
     });
-    console.log('✅ F1 chart initialized');
+    console.log('F1 chart initialized');
 }
 
 // Initialize Precision-Recall chart
@@ -1419,7 +1419,7 @@ function initializePrecisionRecallChart() {
             }
         }
     });
-    console.log('✅ Precision-Recall chart initialized');
+    console.log('Precision-Recall chart initialized');
 }
 
 // Initialize Defense Strength chart
@@ -1506,18 +1506,18 @@ function initializeDefenseStrengthChart() {
             }
         }
     });
-    console.log('✅ Defense Strength chart initialized');
+    console.log('Defense Strength chart initialized');
 }
 
 // Initialize gender fairness chart (horizontal bar chart)
 function initializeGenderFairnessChart() {
     const ctx = document.getElementById('gender-fairness-chart');
     if (!ctx) {
-        console.log('❌ Gender fairness chart canvas not found');
+        console.log('Gender fairness chart canvas not found');
         return;
     }
     
-    console.log('🔄 Initializing gender fairness chart...');
+    console.log('Initializing gender fairness chart...');
     
     charts.genderFairness = new Chart(ctx, {
         type: 'bar',
@@ -1591,18 +1591,18 @@ function initializeGenderFairnessChart() {
             }
         }
     });
-    console.log('✅ Gender fairness chart initialized');
+    console.log('Gender fairness chart initialized');
 }
 
 // Initialize age fairness chart (vertical bar chart)
 function initializeAgeFairnessChart() {
     const ctx = document.getElementById('age-fairness-chart');
     if (!ctx) {
-        console.log('❌ Age fairness chart canvas not found');
+        console.log('Age fairness chart canvas not found');
         return;
     }
     
-    console.log('🔄 Initializing age fairness chart...');
+    console.log('Initializing age fairness chart...');
     
     charts.ageFairness = new Chart(ctx, {
         type: 'bar',
@@ -1685,18 +1685,18 @@ function initializeAgeFairnessChart() {
             }
         }
     });
-    console.log('✅ Age fairness chart initialized');
+    console.log('Age fairness chart initialized');
 }
 
 // Initialize gender leakage chart (line chart)
 function initializeGenderLeakageChart() {
     const ctx = document.getElementById('gender-leakage-chart');
     if (!ctx) {
-        console.log('❌ Gender leakage chart canvas not found');
+        console.log('Gender leakage chart canvas not found');
         return;
     }
     
-    console.log('🔄 Initializing gender leakage chart...');
+    console.log('Initializing gender leakage chart...');
     
     charts.genderLeakage = new Chart(ctx, {
         type: 'line',
@@ -1781,18 +1781,18 @@ function initializeGenderLeakageChart() {
             }
         }
     });
-    console.log('✅ Gender leakage chart initialized');
+    console.log('Gender leakage chart initialized');
 }
 
 // Initialize age leakage chart (line chart)
 function initializeAgeLeakageChart() {
     const ctx = document.getElementById('age-leakage-chart');
     if (!ctx) {
-        console.log('❌ Age leakage chart canvas not found');
+        console.log('Age leakage chart canvas not found');
         return;
     }
     
-    console.log('🔄 Initializing age leakage chart...');
+    console.log('Initializing age leakage chart...');
     
     charts.ageLeakage = new Chart(ctx, {
         type: 'line',
@@ -1877,7 +1877,7 @@ function initializeAgeLeakageChart() {
             }
         }
     });
-    console.log('✅ Age leakage chart initialized');
+    console.log('Age leakage chart initialized');
 }
 
 // Update dashboard from state
@@ -1906,200 +1906,200 @@ function updateDashboardFromState(data) {
 
 // Update charts with live FL data
 function updateChartsWithLiveData(data) {
-    console.log('🔄 Updating charts with FL data:', data);
+    console.log('Updating charts with FL data:', data);
     
     // Add detailed debugging
     if (data.metrics && data.metrics.performance) {
         const performance = data.metrics.performance;
-        console.log('📊 Performance data received:', performance);
-        console.log('📊 Performance arrays - Accuracy:', performance.live_accuracy, 'Loss:', performance.live_loss, 'F1:', performance.f1_score, 'P-R:', performance.precision_recall);
-        console.log('📈 Live accuracy array:', performance.live_accuracy);
-        console.log('📉 Live loss array:', performance.live_loss);
-        console.log('🎯 F1 score array:', performance.f1_score);
+        console.log('Performance data received:', performance);
+        console.log('Performance arrays - Accuracy:', performance.live_accuracy, 'Loss:', performance.live_loss, 'F1:', performance.f1_score, 'P-R:', performance.precision_recall);
+        console.log('Live accuracy array:', performance.live_accuracy);
+        console.log('Live loss array:', performance.live_loss);
+        console.log('F1 score array:', performance.f1_score);
         
         // Update accuracy chart
         if (charts.accuracy) {
             if (performance.live_accuracy && performance.live_accuracy.length > 0) {
                 const rounds = performance.live_accuracy.map((_, index) => `Round ${index + 1}`);
-                console.log('🔄 Updating accuracy chart with rounds:', rounds, 'data:', performance.live_accuracy);
+                console.log('Updating accuracy chart with rounds:', rounds, 'data:', performance.live_accuracy);
                 charts.accuracy.data.labels = rounds;
                 charts.accuracy.data.datasets[0].data = performance.live_accuracy;
                 charts.accuracy.update('none');
-                console.log('✅ Accuracy chart updated successfully');
+                console.log('Accuracy chart updated successfully');
             } else {
                 // Clear chart and show waiting message
                 charts.accuracy.data.labels = [];
                 charts.accuracy.data.datasets[0].data = [];
                 charts.accuracy.update('none');
-                console.log('🔄 Accuracy chart cleared - waiting for data');
+                console.log('Accuracy chart cleared - waiting for data');
             }
         } else {
-            console.log('❌ Accuracy chart not initialized');
+            console.log('Accuracy chart not initialized');
         }
         
         // Update loss chart
         if (charts.loss) {
             if (performance.live_loss && performance.live_loss.length > 0) {
                 const rounds = performance.live_loss.map((_, index) => `Round ${index + 1}`);
-                console.log('🔄 Updating loss chart with rounds:', rounds, 'data:', performance.live_loss);
+                console.log('Updating loss chart with rounds:', rounds, 'data:', performance.live_loss);
                 charts.loss.data.labels = rounds;
                 charts.loss.data.datasets[0].data = performance.live_loss;
                 charts.loss.update('none');
-                console.log('✅ Loss chart updated successfully');
+                console.log('Loss chart updated successfully');
             } else {
                 // Clear chart and show waiting message
                 charts.loss.data.labels = [];
                 charts.loss.data.datasets[0].data = [];
                 charts.loss.update('none');
-                console.log('🔄 Loss chart cleared - waiting for data');
+                console.log('Loss chart cleared - waiting for data');
             }
         } else {
-            console.log('❌ Loss chart not initialized');
+            console.log('Loss chart not initialized');
         }
         
         // Update F1 chart
         if (charts.f1) {
             if (performance.f1_score && performance.f1_score.length > 0) {
                 const rounds = performance.f1_score.map((_, index) => `Round ${index + 1}`);
-                console.log('🔄 Updating F1 chart with rounds:', rounds, 'data:', performance.f1_score);
+                console.log('Updating F1 chart with rounds:', rounds, 'data:', performance.f1_score);
                 charts.f1.data.labels = rounds;
                 charts.f1.data.datasets[0].data = performance.f1_score;
                 charts.f1.update('none');
-                console.log('✅ F1 chart updated successfully');
+                console.log('F1 chart updated successfully');
             } else {
                 // Clear chart and show waiting message
                 charts.f1.data.labels = [];
                 charts.f1.data.datasets[0].data = [];
                 charts.f1.update('none');
-                console.log('🔄 F1 chart cleared - waiting for data');
+                console.log('F1 chart cleared - waiting for data');
             }
         } else {
-            console.log('❌ F1 chart not initialized');
+            console.log('F1 chart not initialized');
         }
         
         // Update Precision-Recall chart
         if (charts.precisionRecall) {
             if (performance.precision_recall && performance.precision_recall.length > 0) {
                 const rounds = performance.precision_recall.map((_, index) => `Round ${index + 1}`);
-                console.log('🔄 Updating Precision-Recall chart with rounds:', rounds, 'data:', performance.precision_recall);
+                console.log('Updating Precision-Recall chart with rounds:', rounds, 'data:', performance.precision_recall);
                 charts.precisionRecall.data.labels = rounds;
                 charts.precisionRecall.data.datasets[0].data = performance.precision_recall;
                 charts.precisionRecall.update('none');
-                console.log('✅ Precision-Recall chart updated successfully');
+                console.log('Precision-Recall chart updated successfully');
             } else {
                 // Clear chart and show waiting message
                 charts.precisionRecall.data.labels = [];
                 charts.precisionRecall.data.datasets[0].data = [];
                 charts.precisionRecall.update('none');
-                console.log('🔄 Precision-Recall chart cleared - waiting for data');
+                console.log('Precision-Recall chart cleared - waiting for data');
             }
         } else {
-            console.log('❌ Precision-Recall chart not initialized');
+            console.log('Precision-Recall chart not initialized');
         }
     } else {
-        console.log('❌ No performance metrics in data:', data);
+        console.log('No performance metrics in data:', data);
     }
     
     // Update Defense Strength chart
     if (data.metrics && data.metrics.defence) {
         const defence = data.metrics.defence;
-        console.log('🛡️ Defense data received:', defence);
-        console.log('🛡️ Defense strength array:', defence.defence_strength);
+        console.log('Defense data received:', defence);
+        console.log('Defense strength array:', defence.defence_strength);
         
         if (charts.defenseStrength) {
             if (defence.defence_strength && defence.defence_strength.length > 0) {
                 const rounds = defence.defence_strength.map((_, index) => `Round ${index + 1}`);
-                console.log('🔄 Updating Defense Strength chart with rounds:', rounds, 'data:', defence.defence_strength);
+                console.log('Updating Defense Strength chart with rounds:', rounds, 'data:', defence.defence_strength);
                 charts.defenseStrength.data.labels = rounds;
                 charts.defenseStrength.data.datasets[0].data = defence.defence_strength;
                 charts.defenseStrength.update('none');
-                console.log('✅ Defense Strength chart updated successfully');
+                console.log('Defense Strength chart updated successfully');
             } else {
                 // Clear chart and show waiting message
                 charts.defenseStrength.data.labels = [];
                 charts.defenseStrength.data.datasets[0].data = [];
                 charts.defenseStrength.update('none');
-                console.log('🔄 Defense Strength chart cleared - waiting for data');
+                console.log('Defense Strength chart cleared - waiting for data');
             }
         } else {
-            console.log('❌ Defense Strength chart not initialized');
+            console.log('Defense Strength chart not initialized');
         }
     } else {
-        console.log('❌ No defense metrics in data:', data);
+        console.log('No defense metrics in data:', data);
     }
     
     // Update Gender Fairness chart
     if (data.metrics && data.metrics.performance && data.metrics.performance.gender_accuracy) {
         const genderData = data.metrics.performance.gender_accuracy;
-        console.log('🚺🚹 Gender fairness data received:', genderData);
+        console.log('Gender fairness data received:', genderData);
         
         if (charts.genderFairness) {
-            console.log('🔄 Updating Gender Fairness chart with data:', genderData);
+            console.log('Updating Gender Fairness chart with data:', genderData);
             charts.genderFairness.data.datasets[0].data = genderData;
             charts.genderFairness.update('none');
-            console.log('✅ Gender Fairness chart updated successfully');
+            console.log('Gender Fairness chart updated successfully');
         } else {
-            console.log('❌ Gender Fairness chart not initialized');
+            console.log('Gender Fairness chart not initialized');
         }
     }
     
     // Update Age Fairness chart
     if (data.metrics && data.metrics.performance && data.metrics.performance.age_accuracy) {
         const ageData = data.metrics.performance.age_accuracy;
-        console.log('👶👴 Age fairness data received:', ageData);
+        console.log('Age fairness data received:', ageData);
         
         if (charts.ageFairness) {
-            console.log('🔄 Updating Age Fairness chart with data:', ageData);
+            console.log('Updating Age Fairness chart with data:', ageData);
             charts.ageFairness.data.datasets[0].data = ageData;
             charts.ageFairness.update('none');
-            console.log('✅ Age Fairness chart updated successfully');
+            console.log('Age Fairness chart updated successfully');
         } else {
-            console.log('❌ Age Fairness chart not initialized');
+            console.log('Age Fairness chart not initialized');
         }
     }
     
     // Update Gender Leakage chart
     if (data.metrics && data.metrics.attack) {
         const attack = data.metrics.attack;
-        console.log('🎯 Attack data received:', attack);
+        console.log('Attack data received:', attack);
         
         if (charts.genderLeakage) {
             if (attack.gender_leakage && attack.gender_leakage.length > 0) {
                 const rounds = attack.gender_leakage.map((_, index) => `Round ${index + 1}`);
-                console.log('🔄 Updating Gender Leakage chart with rounds:', rounds, 'data:', attack.gender_leakage);
+                console.log('Updating Gender Leakage chart with rounds:', rounds, 'data:', attack.gender_leakage);
                 charts.genderLeakage.data.labels = rounds;
                 charts.genderLeakage.data.datasets[0].data = attack.gender_leakage;
                 charts.genderLeakage.update('none');
-                console.log('✅ Gender Leakage chart updated successfully');
+                console.log('Gender Leakage chart updated successfully');
             } else {
                 // Clear chart and show waiting message
                 charts.genderLeakage.data.labels = [];
                 charts.genderLeakage.data.datasets[0].data = [];
                 charts.genderLeakage.update('none');
-                console.log('🔄 Gender Leakage chart cleared - waiting for data');
+                console.log('Gender Leakage chart cleared - waiting for data');
             }
         } else {
-            console.log('❌ Gender Leakage chart not initialized');
+            console.log('Gender Leakage chart not initialized');
         }
         
         // Update Age Leakage chart
         if (charts.ageLeakage) {
             if (attack.age_leakage && attack.age_leakage.length > 0) {
                 const rounds = attack.age_leakage.map((_, index) => `Round ${index + 1}`);
-                console.log('🔄 Updating Age Leakage chart with rounds:', rounds, 'data:', attack.age_leakage);
+                console.log('Updating Age Leakage chart with rounds:', rounds, 'data:', attack.age_leakage);
                 charts.ageLeakage.data.labels = rounds;
                 charts.ageLeakage.data.datasets[0].data = attack.age_leakage;
                 charts.ageLeakage.update('none');
-                console.log('✅ Age Leakage chart updated successfully');
+                console.log('Age Leakage chart updated successfully');
             } else {
                 // Clear chart and show waiting message
                 charts.ageLeakage.data.labels = [];
                 charts.ageLeakage.data.datasets[0].data = [];
                 charts.ageLeakage.update('none');
-                console.log('🔄 Age Leakage chart cleared - waiting for data');
+                console.log('Age Leakage chart cleared - waiting for data');
             }
         } else {
-            console.log('❌ Age Leakage chart not initialized');
+            console.log('Age Leakage chart not initialized');
         }
         
         // Update Defense Metric Boxes with latest values
@@ -2117,7 +2117,7 @@ function updateChartsWithLiveData(data) {
             const ageProtection = Math.min(100, Math.max(0, (100 - latestAgeLeakage) / (100 - 16.67) * 100));
             const genderProtection = Math.min(100, Math.max(0, (100 - latestGenderLeakage) * 2));
             
-            console.log('🛡️ Updating defense metrics:', {
+            console.log('Updating defense metrics:', {
                 ageLeakage: latestAgeLeakage,
                 genderLeakage: latestGenderLeakage,
                 ageProtection: ageProtection,
@@ -2131,7 +2131,7 @@ function updateChartsWithLiveData(data) {
             updateMetricBox('gender-leakage', Math.round(latestGenderLeakage));
         }
     } else {
-        console.log('❌ No attack metrics in data:', data);
+        console.log('No attack metrics in data:', data);
         // Reset defense metric boxes to default values when no data available
         updateMetricBox('age-protection', 0);
         updateMetricBox('gender-protection', 0);
@@ -2143,7 +2143,7 @@ function updateChartsWithLiveData(data) {
 // Update functions for charts (missing functions that were causing console errors)
 function updateGenderFairnessChart(genderFairnessData) {
     if (charts.genderFairness && genderFairnessData) {
-        console.log('📊 Updating gender fairness chart with data:', genderFairnessData);
+        console.log('Updating gender fairness chart with data:', genderFairnessData);
         charts.genderFairness.data.datasets[0].data = genderFairnessData;
         charts.genderFairness.update('none'); // No animation for live updates
     }
@@ -2151,7 +2151,7 @@ function updateGenderFairnessChart(genderFairnessData) {
 
 function updateAgeFairnessChart(ageFairnessData) {
     if (charts.ageFairness && ageFairnessData) {
-        console.log('📊 Updating age fairness chart with data:', ageFairnessData);
+        console.log('Updating age fairness chart with data:', ageFairnessData);
         charts.ageFairness.data.datasets[0].data = ageFairnessData;
         charts.ageFairness.update('none'); // No animation for live updates
     }
@@ -2159,7 +2159,7 @@ function updateAgeFairnessChart(ageFairnessData) {
 
 function updateGenderLeakageChart(genderLeakage) {
     if (charts.genderLeakage && typeof genderLeakage === 'number') {
-        console.log('📊 Updating gender leakage chart with value:', genderLeakage);
+        console.log('Updating gender leakage chart with value:', genderLeakage);
         const currentRound = charts.genderLeakage.data.labels.length + 1;
         charts.genderLeakage.data.labels.push(`Round ${currentRound}`);
         charts.genderLeakage.data.datasets[0].data.push(genderLeakage);
@@ -2176,7 +2176,7 @@ function updateGenderLeakageChart(genderLeakage) {
 
 function updateAgeLeakageChart(ageLeakage) {
     if (charts.ageLeakage && typeof ageLeakage === 'number') {
-        console.log('📊 Updating age leakage chart with value:', ageLeakage);
+        console.log('Updating age leakage chart with value:', ageLeakage);
         const currentRound = charts.ageLeakage.data.labels.length + 1;
         charts.ageLeakage.data.labels.push(`Round ${currentRound}`);
         charts.ageLeakage.data.datasets[0].data.push(ageLeakage);

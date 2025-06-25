@@ -488,7 +488,7 @@ def handle_defence_control(data):
                     'lambda_value': result.get('new_lambda', 0.3),
                     'message': 'Protection activated - Adversarial training enabled'
                 }, broadcast=True)
-                print("🛡️ Dashboard activated server defense (λ=0.3)")
+                print("Dashboard activated server defense (λ=0.3)")
             else:
                 emit('defence_status', {
                     'protection_active': False,
@@ -510,7 +510,7 @@ def handle_defence_control(data):
                     'lambda_value': result.get('new_lambda', 0.0),
                     'message': 'Protection deactivated - Standard training resumed'
                 }, broadcast=True)
-                print("🛡️ Dashboard deactivated server defense (λ=0.0)")
+                print("Dashboard deactivated server defense (λ=0.0)")
             else:
                 emit('defence_status', {
                     'protection_active': False,
