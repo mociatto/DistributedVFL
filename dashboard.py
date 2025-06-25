@@ -21,7 +21,7 @@ app.config['SECRET_KEY'] = 'your-secret-key-here'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Global variables for dashboard state
-current_tab = 'home'
+current_tab = 'attack'
 training_active = False
 training_start_time = None
 training_timer = 0
