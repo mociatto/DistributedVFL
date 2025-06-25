@@ -94,7 +94,7 @@ def read_fl_status():
                 data = json.load(f)
             
             # Debug: Print key status info
-            print(f"🔍 Status: training_active={data.get('training_active')}, round={data.get('current_round')}, accuracy={data.get('accuracy')}")
+            print(f"Status: training_active={data.get('training_active')}, round={data.get('current_round')}, accuracy={data.get('accuracy')}")
             
             return {
                 'training_active': data.get('training_active', False) or data.get('status') in ['running', 'training'],
@@ -133,7 +133,7 @@ def monitor_fl_training():
                 if fl_status['training_active'] and not training_active:
                     training_active = True
                     start_timer()  # Start timer when training begins
-                    print("🚀 FL Training detected - Dashboard now monitoring")
+                    print("FL Training detected - Dashboard now monitoring")
                     
                     # Update status based on phase
                     if fl_status['phase'] == 'initial_training':
@@ -154,13 +154,13 @@ def monitor_fl_training():
                     live_metrics['attack']['age_leakage'] = []
                     live_metrics['attack']['gender_leakage'] = []
                     last_round_seen = 0  # Reset round counter
-                    print("🧹 Cleared mock data - ready for real FL data")
+                    print("Cleared mock data - ready for real FL data")
                     
                 elif not fl_status['training_active'] and training_active:
                     training_active = False
                     pause_timer()  # Pause timer when training finishes
                     update_status('TRAINING_COMPLETED')
-                    print("⏹️ FL Training completed - Timer paused")
+                    print("FL Training completed - Timer paused")
                 
                 # Update current round and config
                 current_config['current_round'] = fl_status['current_round']
@@ -197,13 +197,13 @@ def monitor_fl_training():
                 
                 # Add new data point when a round completes
                 if fl_status['current_round'] > last_round_seen and fl_status['current_round'] > 0:
-                    print(f"📊 New FL Round {fl_status['current_round']} completed!")
-                    print(f"📈 Accuracy: {fl_status['accuracy']:.2f}%")
-                    print(f"📉 Loss: {fl_status['loss']:.4f}")
-                    print(f"🎯 F1 Score: {fl_status['f1_score']:.2f}%")
-                    print(f"🎯 Precision-Recall: {fl_status['precision_recall']:.2f}%")
-                    print(f"🛡️ Defense Strength: {fl_status['defense_strength']:.2f}%")
-                    print(f"🔍 Last round seen: {last_round_seen}, Current round: {fl_status['current_round']}")
+                    print(f"New FL Round {fl_status['current_round']} completed!")
+                    print(f"Accuracy: {fl_status['accuracy']:.2f}%")
+                    print(f"Loss: {fl_status['loss']:.4f}")
+                    print(f"F1 Score: {fl_status['f1_score']:.2f}%")
+                    print(f"Precision-Recall: {fl_status['precision_recall']:.2f}%")
+                    print(f"Defense Strength: {fl_status['defense_strength']:.2f}%")
+                    print(f"Last round seen: {last_round_seen}, Current round: {fl_status['current_round']}")
                     
                     # Update status for round completion
                     update_status('ROUND_COMPLETED', 
@@ -220,10 +220,10 @@ def monitor_fl_training():
                     live_metrics['performance']['age_accuracy'] = fl_status['age_fairness']  # Replace, not append
                     
                     # Debug: Print accumulated metrics
-                    print(f"🔍 Accumulated accuracy data: {live_metrics['performance']['live_accuracy']}")
-                    print(f"🔍 Accumulated loss data: {live_metrics['performance']['live_loss']}")
-                    print(f"🔍 Accumulated F1 data: {live_metrics['performance']['f1_score']}")
-                    print(f"🔍 Accumulated P-R data: {live_metrics['performance']['precision_recall']}")
+                    print(f"Accumulated accuracy data: {live_metrics['performance']['live_accuracy']}")
+                    print(f"Accumulated loss data: {live_metrics['performance']['live_loss']}")
+                    print(f"Accumulated F1 data: {live_metrics['performance']['f1_score']}")
+                    print(f"Accumulated P-R data: {live_metrics['performance']['precision_recall']}")
                     
                     # Add to attack metrics (leakage data)
                     live_metrics['attack']['age_leakage'].append(fl_status['age_leakage'])
@@ -304,7 +304,7 @@ def serve_asset(filename):
 @socketio.on('connect')
 def handle_connect():
     """Send initial dashboard state when client connects"""
-    print(f"🔌 Client connected")
+    print(f"Client connected")
     emit('dashboard_state', {
         'current_tab': current_tab,
         'config': current_config,
@@ -338,13 +338,13 @@ def handle_config_update(data):
     
     if config_type == 'data_percentage':
         current_config['data_percentage'] = value
-        print(f"📊 Data percentage updated to: {value}%")
+        print(f"Data percentage updated to: {value}%")
     elif config_type == 'federated_rounds':
         current_config['federated_rounds'] = value
-        print(f"🔄 Federated rounds updated to: {value}")
+        print(f"Federated rounds updated to: {value}")
     elif config_type == 'epochs_per_round':
         current_config['epochs_per_round'] = value
-        print(f"📈 Epochs per round updated to: {value}")
+        print(f"Epochs per round updated to: {value}")
     
     # Broadcast updated config to all clients
     emit('config_updated', {
@@ -353,7 +353,7 @@ def handle_config_update(data):
         'full_config': current_config
     }, broadcast=True)
     
-    print(f"⚙️ Current config: {current_config}")
+    print(f"Current config: {current_config}")
 
 @socketio.on('training_control')
 def handle_training_control(data):
@@ -364,7 +364,7 @@ def handle_training_control(data):
     
     if action == 'play':
         if not processes_running:
-            print(f"🎮 Starting FL training with config: {current_config}")
+            print(f"Starting FL training with config: {current_config}")
             
             # Update status and start timer
             update_status('INITIALIZING_SERVER')
@@ -402,7 +402,7 @@ def handle_training_control(data):
             
     elif action == 'stop':
         if processes_running:
-            print("🛑 Stopping FL training")
+            print("Stopping FL training")
             
             # Pause timer and update status
             pause_timer()
@@ -490,7 +490,7 @@ def handle_defence_control(data):
                 }, broadcast=True)
                 
     except Exception as e:
-        print(f"❌ Error in defense control: {e}")
+        print(f"Error in defense control: {e}")
         emit('defence_status', {
             'protection_active': False,
             'error': str(e),
@@ -501,7 +501,7 @@ def kill_process_on_port(port=5050):
     """Kill any existing process running on the specified port."""
     try:
         import psutil
-        print(f"🔍 Checking for existing processes on port {port}...")
+        print(f"Checking for existing processes on port {port}...")
         
         # Find processes using the port
         for proc in psutil.process_iter(['pid', 'name', 'connections']):
@@ -510,16 +510,16 @@ def kill_process_on_port(port=5050):
                 if connections:
                     for conn in connections:
                         if hasattr(conn, 'laddr') and conn.laddr and conn.laddr.port == port:
-                            print(f"🔪 Killing process {proc.info['pid']} ({proc.info['name']}) on port {port}")
+                            print(f"Killing process {proc.info['pid']} ({proc.info['name']}) on port {port}")
                             proc.kill()
                             proc.wait(timeout=3)
-                            print(f"✅ Process {proc.info['pid']} killed successfully")
+                            print(f"Process {proc.info['pid']} killed successfully")
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
                 
     except ImportError:
         # Fallback method using lsof and kill
-        print(f"🔍 Using lsof to check port {port}...")
+        print(f"Using lsof to check port {port}...")
         try:
             # Find process using the port
             result = subprocess.run(['lsof', '-ti', f':{port}'], 
@@ -528,19 +528,19 @@ def kill_process_on_port(port=5050):
                 pids = result.stdout.strip().split('\n')
                 for pid in pids:
                     if pid:
-                        print(f"🔪 Killing process {pid} on port {port}")
+                        print(f"Killing process {pid} on port {port}")
                         subprocess.run(['kill', '-9', pid], timeout=5)
-                        print(f"✅ Process {pid} killed successfully")
+                        print(f"Process {pid} killed successfully")
             else:
                 print(f"✅ No existing process found on port {port}")
         except subprocess.TimeoutExpired:
-            print(f"⚠️ Timeout while checking port {port}")
+            print(f"Timeout while checking port {port}")
         except FileNotFoundError:
-            print(f"⚠️ lsof command not found, skipping port cleanup")
+            print(f"lsof command not found, skipping port cleanup")
         except Exception as e:
-            print(f"⚠️ Error during port cleanup: {e}")
+            print(f"Error during port cleanup: {e}")
     except Exception as e:
-        print(f"⚠️ Error during port cleanup: {e}")
+        print(f"Error during port cleanup: {e}")
 
 def open_browser():
     """Open browser after a short delay."""
@@ -574,8 +574,8 @@ def start_server_process():
         terminal_cmd = get_terminal_command()
         full_cmd = terminal_cmd(cmd)
         
-        print(f"🚀 Starting server with command: {cmd}")
-        print(f"🖥️ Terminal command: {full_cmd}")
+        print(f"Starting server with command: {cmd}")
+        print(f"Terminal command: {full_cmd}")
         
         # Start server in new terminal
         if platform.system().lower() == 'darwin':  # macOS
@@ -593,7 +593,7 @@ def start_server_process():
                                            cwd=current_dir)
         
         processes_running = True
-        print(f"✅ Server process started with PID: {server_process.pid}")
+        print(f"Server process started with PID: {server_process.pid}")
         
         # Schedule client startup after 5 seconds
         threading.Timer(5.0, start_client_processes).start()
@@ -601,7 +601,7 @@ def start_server_process():
         return True
         
     except Exception as e:
-        print(f"❌ Error starting server: {e}")
+        print(f"Error starting server: {e}")
         return False
 
 def start_client_processes():
@@ -609,7 +609,7 @@ def start_client_processes():
     global image_client_process, tabular_client_process
     
     try:
-        print("🔄 Starting client processes...")
+        print("Starting client processes...")
         
         # Get current working directory
         current_dir = os.getcwd()
@@ -628,7 +628,7 @@ def start_client_processes():
         else:
             image_client_process = subprocess.Popen(['python3', 'image_client.py'], cwd=current_dir)
         
-        print(f"✅ Image client started with PID: {image_client_process.pid}")
+        print(f"Image client started with PID: {image_client_process.pid}")
         
         # Start tabular client
         tabular_cmd = f"cd '{current_dir}' && python3 tabular_client.py"
@@ -641,17 +641,17 @@ def start_client_processes():
         else:
             tabular_client_process = subprocess.Popen(['python3', 'tabular_client.py'], cwd=current_dir)
         
-        print(f"✅ Tabular client started with PID: {tabular_client_process.pid}")
+        print(f"Tabular client started with PID: {tabular_client_process.pid}")
         
     except Exception as e:
-        print(f"❌ Error starting clients: {e}")
+        print(f"Error starting clients: {e}")
 
 def stop_all_processes():
     """Stop all running processes."""
     global server_process, image_client_process, tabular_client_process, processes_running
     
     try:
-        print("🛑 Stopping all processes...")
+        print("Stopping all processes...")
         
         # Stop server process
         if server_process:
@@ -661,9 +661,9 @@ def stop_all_processes():
                 else:
                     server_process.kill()
                 server_process.wait(timeout=5)
-                print("✅ Server process stopped")
+                print("Server process stopped")
             except Exception as e:
-                print(f"⚠️ Error stopping server: {e}")
+                print(f"Error stopping server: {e}")
             server_process = None
         
         # Stop image client
@@ -674,9 +674,9 @@ def stop_all_processes():
                 else:
                     image_client_process.kill()
                 image_client_process.wait(timeout=5)
-                print("✅ Image client stopped")
+                print("Image client stopped")
             except Exception as e:
-                print(f"⚠️ Error stopping image client: {e}")
+                print(f"Error stopping image client: {e}")
             image_client_process = None
         
         # Stop tabular client
@@ -687,18 +687,18 @@ def stop_all_processes():
                 else:
                     tabular_client_process.kill()
                 tabular_client_process.wait(timeout=5)
-                print("✅ Tabular client stopped")
+                print("Tabular client stopped")
             except Exception as e:
-                print(f"⚠️ Error stopping tabular client: {e}")
+                print(f"Error stopping tabular client: {e}")
             tabular_client_process = None
         
         processes_running = False
-        print("✅ All processes stopped")
+        print("All processes stopped")
         
         return True
         
     except Exception as e:
-        print(f"❌ Error stopping processes: {e}")
+        print(f"Error stopping processes: {e}")
         return False
 
 def clean_status_files():
@@ -711,13 +711,13 @@ def clean_status_files():
     status_file = os.path.join(status_dir, "status.json")
     if os.path.exists(status_file):
         os.remove(status_file)
-        print("🧹 Removed old status file")
+        print("Removed old status file")
     
-    print("✅ Status directory cleaned for fresh start")
+    print("Status directory cleaned for fresh start")
 
 def cleanup_on_exit():
     """Cleanup function to run on dashboard exit."""
-    print("🧹 Dashboard shutting down - cleaning up processes...")
+    print("Dashboard shutting down - cleaning up processes...")
     stop_all_processes()
 
 # Register cleanup function
@@ -739,7 +739,7 @@ def start_timer():
             timer_start_time = time.time()
         
         timer_running = True
-        print(f"⏱️ Timer started")
+        print(f"Timer started")
 
 def pause_timer():
     """Pause the training timer"""
@@ -749,7 +749,7 @@ def pause_timer():
         timer_running = False
         timer_pause_time = time.time()
         timer_elapsed_seconds = timer_pause_time - timer_start_time
-        print(f"⏸️ Timer paused at {format_time(timer_elapsed_seconds)}")
+        print(f"Timer paused at {format_time(timer_elapsed_seconds)}")
 
 def reset_timer():
     """Reset the training timer to 00:00:00"""
@@ -759,7 +759,7 @@ def reset_timer():
     timer_start_time = None
     timer_pause_time = None
     timer_elapsed_seconds = 0
-    print(f"🔄 Timer reset to 00:00:00")
+    print(f"Timer reset to 00:00:00")
 
 def get_elapsed_time():
     """Get current elapsed time in seconds"""
@@ -796,9 +796,9 @@ def update_status(status_key, **kwargs):
             'timestamp': datetime.now().isoformat()
         })
         
-        print(f"📋 Status: {new_status}")
+        print(f"Status: {new_status}")
     except Exception as e:
-        print(f"❌ Error updating status: {e}")
+        print(f"Error updating status: {e}")
 
 def update_detailed_status(message):
     """Update the detailed status message"""
@@ -813,7 +813,7 @@ def update_detailed_status(message):
 # Live metrics with enhanced status tracking
 
 if __name__ == '__main__':
-    print("🚀 Starting HYBRIDVFL Dashboard...")
+    print("Starting HYBRIDVFL Dashboard...")
     
     # Clean status files for fresh start
     clean_status_files()
@@ -821,12 +821,12 @@ if __name__ == '__main__':
     # Kill any existing process on port 5050
     kill_process_on_port(5050)
     
-    print("📊 Dashboard will be available at: http://localhost:5050")
-    print("📈 Monitoring DistributedVFL training status...")
-    print("📁 Reading from: status/status.json")
-    print("⏹️  Press Ctrl+C to stop")
+    print("Dashboard will be available at: http://localhost:5050")
+    print("Monitoring DistributedVFL training status...")
+    print("Reading from: status/status.json")
+    print("Press Ctrl+C to stop")
     print()
-    print("🔄 Workflow:")
+    print("Workflow:")
     print("   1. Start this dashboard: python dashboard.py")
     print("   2. Start FL server: python server.py")
     print("   3. Start clients: python image_client.py & python tabular_client.py")
@@ -845,8 +845,8 @@ if __name__ == '__main__':
     try:
         socketio.run(app, host='0.0.0.0', port=5050, debug=False)
     except KeyboardInterrupt:
-        print("\n🛑 Dashboard stopped by user")
+        print("\nDashboard stopped by user")
     except Exception as e:
-        print(f"\n❌ Dashboard error: {e}")
+        print(f"\nDashboard error: {e}")
     finally:
         cleanup_on_exit() 

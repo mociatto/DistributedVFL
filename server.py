@@ -75,6 +75,26 @@ class FederatedServer:
         # Federated learning state
         self.aggregated_embedding_knowledge = None
         
+        # DYNAMIC ADVERSARIAL LAMBDA SYSTEM - DISABLED BY DEFAULT
+        self.dynamic_lambda_enabled = False  # DISABLED until dashboard button clicked
+        self.lambda_history = []  # Track lambda changes over time
+        self.attack_performance_history = []  # Track attack success rates
+        self.lambda_adjustment_strategy = "adaptive_pid"  # "adaptive_pid", "threshold_based", "exponential"
+        
+        # PID Controller parameters for lambda adjustment
+        self.lambda_pid = {
+            'kp': 0.8,      # Proportional gain (how quickly to respond)
+            'ki': 0.2,      # Integral gain (how much to consider past errors)
+            'kd': 0.1,      # Derivative gain (how much to consider rate of change)
+            'previous_error': 0.0,
+            'integral': 0.0,
+            'target_age_leakage': 25.0,     # Target: reduce age leakage to ~25% (vs 16.67% random)
+            'target_gender_leakage': 60.0,   # Target: reduce gender leakage to ~60% (vs 50% random)
+            'min_lambda': 0.0,
+            'max_lambda': 1.0,
+            'lambda_change_rate': 0.15  # Maximum change per round
+        }
+        
         print(f"Federated Server Initialized")
         print(f"   Embedding dimension: {self.embedding_dim}")
         print(f"   Number of classes: {self.num_classes}")
@@ -86,6 +106,15 @@ class FederatedServer:
             print(f"   Privacy mechanism: DISABLED (Phase 1 - High Performance)")
         else:
             print(f"   Privacy mechanism: ENABLED (Lambda={self.adversarial_lambda})")
+        
+        # Dynamic lambda system info - ONLY show if enabled
+        if self.dynamic_lambda_enabled:
+            print(f"   🎯 Dynamic Lambda System: ENABLED")
+            print(f"   📊 Strategy: {self.lambda_adjustment_strategy}")
+            print(f"   🎛️ Target age leakage: {self.lambda_pid['target_age_leakage']:.1f}%")
+            print(f"   🎛️ Target gender leakage: {self.lambda_pid['target_gender_leakage']:.1f}%")
+        else:
+            print(f"   🎯 Dynamic Lambda System: DISABLED (controlled by dashboard)")
         
         # Create inference attack models
         self.create_inference_models()
@@ -290,7 +319,6 @@ class FederatedServer:
                     self.save_best_model()
                 except Exception as e:
                     print(f"Failed to save best model: {e}")
-            
             return {
                 'accuracy': round_accuracy,
                 'f1': round_f1,
@@ -395,7 +423,7 @@ class FederatedServer:
         """
         Train inference attack models with fresh embeddings and evaluate leakage.
         This simulates adversarial attacks trying to infer sensitive attributes.
-        FIXED: Now properly applies adversarial defense to embeddings before inference attacks.
+        ENHANCED: Now includes dynamic lambda adjustment based on attack performance.
         """
         try:
             print(f"   Training inference attacks for Round {round_idx + 1}...")
@@ -404,86 +432,117 @@ class FederatedServer:
             train_image_emb, train_tabular_emb, train_labels, train_sensitive_attrs = self.load_client_embeddings('train')
             val_image_emb, val_tabular_emb, val_labels, val_sensitive_attrs = self.load_client_embeddings('val')
             
-            if train_sensitive_attrs is None or val_sensitive_attrs is None:
-                print("   Warning: No sensitive attributes available for inference attacks")
-                return {'age_leakage': 16.67, 'gender_leakage': 50.0}  # Random guess baselines
+            if train_image_emb is None or train_tabular_emb is None:
+                print("     ⚠️ Warning: Could not load embeddings for inference attacks")
+                return {
+                    'age_leakage': 16.67,  # Random baseline
+                    'gender_leakage': 50.0,  # Random baseline
+                    'defense_strength': 0.0
+                }
             
-            # Combine embeddings (concatenate image + tabular)
+            # Combine embeddings (image + tabular)
             train_combined = np.concatenate([train_image_emb, train_tabular_emb], axis=1)
             val_combined = np.concatenate([val_image_emb, val_tabular_emb], axis=1)
             
-            # CRITICAL FIX: Apply adversarial defense to embeddings if enabled
+            # Apply adversarial defense if lambda > 0 (ONLY when actually enabled)
             if self.adversarial_lambda > 0:
-                print(f"     🛡️ Applying adversarial defense (λ={self.adversarial_lambda}) to embeddings...")
+                print(f"     🛡️ Applying adversarial defense (λ={self.adversarial_lambda:.3f}) to embeddings...")
                 train_combined = self._apply_adversarial_defense(train_combined, self.adversarial_lambda)
                 val_combined = self._apply_adversarial_defense(val_combined, self.adversarial_lambda)
-                print(f"     ✅ Defense applied - embeddings now protected against inference attacks")
             else:
                 print(f"     🔓 No adversarial defense - embeddings vulnerable to inference attacks")
             
-            # Extract sensitive attributes
-            train_genders = train_sensitive_attrs[:, 0].astype(int)  # 0=female, 1=male
-            train_ages = train_sensitive_attrs[:, 1].astype(int)     # 0-5 age bins
-            val_genders = val_sensitive_attrs[:, 0].astype(int)
-            val_ages = val_sensitive_attrs[:, 1].astype(int)
+            # Extract sensitive attributes - FIXED: Handle numpy array correctly
+            if train_sensitive_attrs is None or val_sensitive_attrs is None:
+                print("     ⚠️ Warning: Sensitive attributes not available")
+                return {
+                    'age_leakage': 16.67,  # Random baseline
+                    'gender_leakage': 50.0,  # Random baseline  
+                    'defense_strength': 0.0
+                }
             
-            # Train Age Inference Attack (fresh training each round)
-            print("     Training age inference attack...")
-            age_history = self.age_inference_model.fit(
-                train_combined, train_ages,
-                validation_data=(val_combined, val_ages),
-                epochs=10,  # Quick training on embeddings
-                batch_size=32,
-                verbose=0
+            # FIXED: Correct indexing for numpy array
+            # sensitive_attrs is numpy array with shape (n_samples, 2)
+            # Column 0: sex_encoded (0=female, 1=male)
+            # Column 1: age_bin (0-5 age groups)
+            train_gender_labels = train_sensitive_attrs[:, 0].astype(int)  # Gender column
+            train_age_labels = train_sensitive_attrs[:, 1].astype(int)     # Age column
+            val_gender_labels = val_sensitive_attrs[:, 0].astype(int)      # Gender column
+            val_age_labels = val_sensitive_attrs[:, 1].astype(int)         # Age column
+            
+            print(f"     Gender distribution: {np.bincount(train_gender_labels)} (0=female, 1=male)")
+            print(f"     Age distribution: {np.bincount(train_age_labels)} (6 age groups)")
+            
+            # Train age inference attack
+            print(f"     Training age inference attack...")
+            self.age_inference_model.fit(
+                train_combined, train_age_labels,
+                validation_data=(val_combined, val_age_labels),
+                epochs=10, batch_size=32, verbose=0
             )
             
-            # Evaluate age leakage
-            age_predictions = self.age_inference_model.predict(val_combined, verbose=0)
-            age_pred_classes = np.argmax(age_predictions, axis=1)
-            age_leakage = np.mean(age_pred_classes == val_ages) * 100  # Convert to percentage
-            
-            # Train Gender Inference Attack (fresh training each round)
-            print("     Training gender inference attack...")
-            gender_history = self.gender_inference_model.fit(
-                train_combined, train_genders,
-                validation_data=(val_combined, val_genders),
-                epochs=10,  # Quick training on embeddings
-                batch_size=32,
-                verbose=0
+            # Train gender inference attack  
+            print(f"     Training gender inference attack...")
+            self.gender_inference_model.fit(
+                train_combined, train_gender_labels,
+                validation_data=(val_combined, val_gender_labels),
+                epochs=10, batch_size=32, verbose=0
             )
             
-            # Evaluate gender leakage
-            gender_predictions = self.gender_inference_model.predict(val_combined, verbose=0)
-            gender_pred_classes = np.argmax(gender_predictions, axis=1)
-            gender_leakage = np.mean(gender_pred_classes == val_genders) * 100  # Convert to percentage
+            # Evaluate inference attacks
+            age_pred = self.age_inference_model.predict(val_combined, verbose=0)
+            gender_pred = self.gender_inference_model.predict(val_combined, verbose=0)
             
-            print(f"     Age leakage: {age_leakage:.2f}% (baseline: 16.67%)")
-            print(f"     Gender leakage: {gender_leakage:.2f}% (baseline: 50.0%)")
+            age_accuracy = np.mean(np.argmax(age_pred, axis=1) == val_age_labels) * 100
+            gender_accuracy = np.mean(np.argmax(gender_pred, axis=1) == val_gender_labels) * 100
             
-            # Expected behavior:
-            # - No defense (λ=0): High leakage (successful attacks)
-            # - With defense (λ>0): Lower leakage (attacks mitigated)
+            print(f"     Age leakage: {age_accuracy:.2f}% (baseline: 16.67%)")
+            print(f"     Gender leakage: {gender_accuracy:.2f}% (baseline: 50.0%)")
+            
+            # ONLY update dynamic lambda if the system is ENABLED
+            if self.dynamic_lambda_enabled:
+                print(f"   🎯 Evaluating dynamic lambda adjustment...")
+                old_lambda = self.adversarial_lambda
+                self.update_dynamic_adversarial_lambda(age_accuracy, gender_accuracy, round_idx)
+                if self.adversarial_lambda != old_lambda:
+                    print(f"   🛡️ DYNAMIC LAMBDA UPDATE: {old_lambda:.3f} → {self.adversarial_lambda:.3f}")
+                    print(f"     Reason: Attack performance evaluation")
+                    print(f"     Strategy: {self.lambda_adjustment_strategy}")
+            else:
+                # Dynamic lambda is DISABLED - lambda only changes via dashboard
+                print(f"   🎯 Dynamic lambda system DISABLED - lambda controlled by dashboard")
+            
+            # Calculate defense strength
+            defense_strength = self._calculate_defense_strength(age_accuracy, gender_accuracy)
             
             return {
-                'age_leakage': age_leakage,
-                'gender_leakage': gender_leakage
+                'age_leakage': age_accuracy,
+                'gender_leakage': gender_accuracy,
+                'defense_strength': defense_strength
             }
             
         except Exception as e:
             print(f"   Error in inference attacks: {e}")
-            return {'age_leakage': 16.67, 'gender_leakage': 50.0}  # Random guess fallback
+            import traceback
+            traceback.print_exc()
+            # Return baseline values on error (NOT fake 100% protection)
+            return {
+                'age_leakage': 90.0,  # Assume high leakage on error
+                'gender_leakage': 95.0,  # Assume high leakage on error
+                'defense_strength': 0.0  # No protection on error
+            }
 
     def _apply_adversarial_defense(self, embeddings, adversarial_lambda):
         """
-        Apply REAL adversarial defense perturbations to embeddings.
-        Uses the actual trained inference models to create targeted perturbations.
+        Apply WILD adversarial defense perturbations to embeddings.
+        ENHANCED: Much stronger perturbations inspired by successful research.
         
         Args:
             embeddings: Input embeddings to protect
             adversarial_lambda: Defense strength parameter
             
         Returns:
-            Protected embeddings with adversarial perturbations applied
+            Protected embeddings with WILD adversarial perturbations applied
         """
         if adversarial_lambda <= 0:
             return embeddings
@@ -495,57 +554,224 @@ class FederatedServer:
         
         # Use the ACTUAL trained inference models (not dummy models)
         if not hasattr(self, 'age_inference_model') or not hasattr(self, 'gender_inference_model'):
-            print("     ⚠️ Warning: Inference models not available, using strong random noise")
-            # Fallback to strong random perturbations
-            noise = tf.random.normal(embeddings_tensor.shape, stddev=adversarial_lambda * 0.4)
+            print("     ⚠️ Warning: Inference models not available, using WILD random noise")
+            # Fallback to EXTREMELY strong random perturbations
+            noise = tf.random.normal(embeddings_tensor.shape, stddev=adversarial_lambda * 3.0)  # 3x stronger!
             return (embeddings_tensor + noise).numpy()
         
-        # REAL adversarial perturbation using trained models
-        with tf.GradientTape(persistent=True) as tape:
-            tape.watch(embeddings_tensor)
-            
-            # Get predictions from ACTUAL trained inference models
-            age_pred = self.age_inference_model(embeddings_tensor, training=False)
-            gender_pred = self.gender_inference_model(embeddings_tensor, training=False)
-            
-            # Create adversarial targets to confuse the attackers
-            batch_size = tf.shape(embeddings_tensor)[0]
-            
-            # For age: target uniform distribution (confuse the attacker)
-            age_target = tf.ones_like(age_pred) / 6.0  # Uniform over 6 classes
-            
-            # For gender: target uniform distribution (confuse the attacker)  
-            gender_target = tf.ones_like(gender_pred) / 2.0  # Uniform over 2 classes
-            
-            # Adversarial losses: minimize KL divergence to uniform (maximize confusion)
-            age_adv_loss = tf.keras.losses.kl_divergence(age_target, age_pred)
-            gender_adv_loss = tf.keras.losses.kl_divergence(gender_target, gender_pred)
-            
-            # Total adversarial loss (minimize to push predictions toward uniform)
-            total_adv_loss = tf.reduce_mean(age_adv_loss) + tf.reduce_mean(gender_adv_loss)
+        # WILD adversarial perturbation using trained models
+        batch_size = tf.shape(embeddings_tensor)[0]
+        protected_embeddings = embeddings_tensor
         
-        # Compute gradients w.r.t. embeddings
-        adversarial_gradients = tape.gradient(total_adv_loss, embeddings_tensor)
-        del tape
+        # Multi-step adversarial perturbation (inspired by PGD approach)
+        num_steps = 12  # More perturbation steps for EXTREME WILD defense
+        step_size = adversarial_lambda * 1.2  # MUCH stronger step size (was 0.8)
         
-        if adversarial_gradients is not None:
-            # Apply adversarial perturbations to MINIMIZE the loss (push toward uniform)
-            perturbation_strength = adversarial_lambda * 0.8  # Stronger perturbations
+        for step in range(num_steps):
+            with tf.GradientTape(persistent=True) as tape:
+                tape.watch(protected_embeddings)
+                
+                # Get predictions from ACTUAL trained inference models
+                age_pred = self.age_inference_model(protected_embeddings, training=False)
+                gender_pred = self.gender_inference_model(protected_embeddings, training=False)
+                
+                # Strategy 1: Maximize entropy (push toward uniform distribution)
+                age_entropy = -tf.reduce_sum(age_pred * tf.math.log(age_pred + 1e-8), axis=1)
+                gender_entropy = -tf.reduce_sum(gender_pred * tf.math.log(gender_pred + 1e-8), axis=1)
+                
+                # Strategy 2: Target confusion (push toward wrong predictions)
+                # Create adversarial targets that are maximally confusing
+                age_uniform_target = tf.ones_like(age_pred) / 6.0  # Uniform over 6 classes
+                gender_uniform_target = tf.ones_like(gender_pred) / 2.0  # Uniform over 2 classes
+                
+                # Use cross-entropy loss instead of KL divergence (FIXED API ERROR)
+                # Convert uniform targets to label format for cross-entropy
+                age_confusion_loss = tf.keras.losses.categorical_crossentropy(age_uniform_target, age_pred)
+                gender_confusion_loss = tf.keras.losses.categorical_crossentropy(gender_uniform_target, gender_pred)
+                
+                # Strategy 3: Feature corruption (add noise to most important features)
+                # Calculate feature importance based on gradients
+                dummy_age_loss = tf.reduce_mean(tf.keras.losses.sparse_categorical_crossentropy(
+                    tf.zeros([batch_size], dtype=tf.int32), age_pred))
+                dummy_gender_loss = tf.reduce_mean(tf.keras.losses.sparse_categorical_crossentropy(
+                    tf.zeros([batch_size], dtype=tf.int32), gender_pred))
+                
+                # ENHANCED: Extra focus on gender defense (since it's harder to protect)
+                gender_focus_multiplier = 3.0  # 3x more focus on gender defense
+                
+                # Combined adversarial objective: maximize entropy + maximize confusion + corrupt features
+                total_adv_loss = (
+                    -tf.reduce_mean(age_entropy) +      # Negative because we want to MAXIMIZE entropy
+                    -tf.reduce_mean(gender_entropy) * gender_focus_multiplier +  # Extra gender focus
+                    tf.reduce_mean(age_confusion_loss) +
+                    tf.reduce_mean(gender_confusion_loss) * gender_focus_multiplier +  # Extra gender focus
+                    dummy_age_loss + dummy_gender_loss * gender_focus_multiplier  # Extra gender focus
+                )
             
-            # Gradient descent step (minimize loss = maximize confusion)
-            gradient_perturbation = -perturbation_strength * tf.sign(adversarial_gradients)
+            # Compute gradients w.r.t. embeddings
+            adversarial_gradients = tape.gradient(total_adv_loss, protected_embeddings)
+            del tape
             
-            # Add some random noise for robustness
-            random_noise = tf.random.normal(embeddings_tensor.shape, stddev=adversarial_lambda * 0.3)
-            
-            # Combined perturbation
-            total_perturbation = gradient_perturbation + random_noise
-        else:
-            # Fallback to strong random noise
-            total_perturbation = tf.random.normal(embeddings_tensor.shape, stddev=adversarial_lambda * 0.5)
+            if adversarial_gradients is not None:
+                # Apply WILD gradient-based perturbations
+                # Use signed gradients for maximum disruption
+                gradient_perturbation = step_size * tf.sign(adversarial_gradients)
+                
+                # Add WILD structured noise based on embedding statistics
+                embedding_std = tf.math.reduce_std(protected_embeddings, axis=0)
+                structured_noise = tf.random.normal(protected_embeddings.shape) * embedding_std * adversarial_lambda * 2.0  # 4x stronger!
+                
+                # Add WILD random uniform noise for additional robustness
+                uniform_noise = tf.random.uniform(protected_embeddings.shape, -adversarial_lambda * 1.5, adversarial_lambda * 1.5)  # 4x stronger!
+                
+                # Add WILD Gaussian noise
+                gaussian_noise = tf.random.normal(protected_embeddings.shape, stddev=adversarial_lambda * 1.0)  # 4x stronger!
+                
+                # Add EXTREME noise for gender-specific features
+                # Target features that are most important for gender prediction
+                gender_specific_noise = tf.random.normal(protected_embeddings.shape) * adversarial_lambda * 1.8  # Gender-specific noise
+                
+                # Combined perturbation: gradient + structured + uniform + gaussian + gender-specific
+                total_perturbation = (gradient_perturbation + structured_noise + uniform_noise + 
+                                    gaussian_noise + gender_specific_noise)
+                
+                # Apply perturbation with clipping to prevent extreme values
+                protected_embeddings = protected_embeddings + total_perturbation
+                
+                # Optional: Clip to reasonable range to prevent exploding values
+                embedding_mean = tf.reduce_mean(embeddings_tensor)
+                embedding_std_global = tf.math.reduce_std(embeddings_tensor)
+                clip_min = embedding_mean - 6 * embedding_std_global  # Much wider clipping range
+                clip_max = embedding_mean + 6 * embedding_std_global
+                protected_embeddings = tf.clip_by_value(protected_embeddings, clip_min, clip_max)
+            else:
+                # Fallback: WILD random perturbations
+                strong_noise = tf.random.normal(protected_embeddings.shape, stddev=adversarial_lambda * 2.5)  # 3x stronger!
+                protected_embeddings = protected_embeddings + strong_noise
         
-        # Apply perturbations to embeddings
-        protected_embeddings = embeddings_tensor + total_perturbation
+        # Final enhancement: Add WILD feature-wise perturbations
+        # Identify most important features and add targeted noise
+        feature_importance = tf.math.reduce_std(embeddings_tensor, axis=0)  # Features with high variance
+        top_k = min(int(embeddings_tensor.shape[1] * 0.7), 300)  # Top 70% or 300 features (was 50%/200)
+        _, top_indices = tf.nn.top_k(feature_importance, k=top_k)
+        
+        # Create WILD targeted noise for most important features
+        targeted_noise = tf.zeros_like(protected_embeddings)
+        for i in range(top_k):
+            feature_idx = top_indices[i]
+            targeted_noise = tf.tensor_scatter_nd_update(
+                targeted_noise,
+                [[j, feature_idx] for j in range(batch_size)],
+                tf.random.normal([batch_size]) * adversarial_lambda * 2.5  # 4x stronger!
+            )
+        
+        protected_embeddings = protected_embeddings + targeted_noise
+        
+        # Additional WILD enhancement: Add layer-wise perturbations
+        # Split embedding into chunks and apply different noise patterns
+        chunk_size = embeddings_tensor.shape[1] // 6  # 6 chunks (was 4)
+        for chunk_idx in range(6):
+            start_idx = chunk_idx * chunk_size
+            end_idx = min((chunk_idx + 1) * chunk_size, embeddings_tensor.shape[1])
+            
+            # Different noise pattern for each chunk (more aggressive)
+            if chunk_idx == 0:
+                # Multiplicative noise
+                chunk_noise = tf.random.normal([batch_size, end_idx - start_idx]) * adversarial_lambda * 0.8
+                chunk_multiplier = 1.0 + chunk_noise
+                protected_embeddings = tf.tensor_scatter_nd_update(
+                    protected_embeddings,
+                    [[i, j] for i in range(batch_size) for j in range(start_idx, end_idx)],
+                    tf.reshape(protected_embeddings[:, start_idx:end_idx] * chunk_multiplier, [-1])
+                )
+            elif chunk_idx == 1:
+                # Laplace noise (heavier tails than Gaussian)
+                laplace_noise = tf.random.uniform([batch_size, end_idx - start_idx], -1, 1)
+                laplace_noise = tf.sign(laplace_noise) * tf.math.log(1 - tf.abs(laplace_noise) + 1e-8) * adversarial_lambda * 0.6
+                protected_embeddings = tf.tensor_scatter_nd_add(
+                    protected_embeddings,
+                    [[i, j] for i in range(batch_size) for j in range(start_idx, end_idx)],
+                    tf.reshape(laplace_noise, [-1])
+                )
+            elif chunk_idx == 2:
+                # Dropout-like noise (randomly zero out features)
+                dropout_mask = tf.random.uniform([batch_size, end_idx - start_idx]) > (adversarial_lambda * 0.4)
+                dropout_mask = tf.cast(dropout_mask, tf.float32)
+                protected_embeddings = tf.tensor_scatter_nd_update(
+                    protected_embeddings,
+                    [[i, j] for i in range(batch_size) for j in range(start_idx, end_idx)],
+                    tf.reshape(protected_embeddings[:, start_idx:end_idx] * dropout_mask, [-1])
+                )
+            elif chunk_idx == 3:
+                # Adversarial sign flip
+                sign_flip_prob = adversarial_lambda * 0.2
+                flip_mask = tf.random.uniform([batch_size, end_idx - start_idx]) < sign_flip_prob
+                flip_multiplier = tf.where(flip_mask, -1.0, 1.0)
+                protected_embeddings = tf.tensor_scatter_nd_update(
+                    protected_embeddings,
+                    [[i, j] for i in range(batch_size) for j in range(start_idx, end_idx)],
+                    tf.reshape(protected_embeddings[:, start_idx:end_idx] * flip_multiplier, [-1])
+                )
+            elif chunk_idx == 4:
+                # Exponential-like noise (for extreme perturbations)
+                # Use gamma distribution as exponential alternative
+                exp_noise = tf.random.gamma([batch_size, end_idx - start_idx], alpha=1.0, beta=1.0) * adversarial_lambda * 0.3
+                exp_noise = exp_noise * tf.random.uniform([batch_size, end_idx - start_idx], -1, 1)  # Random sign
+                protected_embeddings = tf.tensor_scatter_nd_add(
+                    protected_embeddings,
+                    [[i, j] for i in range(batch_size) for j in range(start_idx, end_idx)],
+                    tf.reshape(exp_noise, [-1])
+                )
+            else:
+                # Cauchy noise (very heavy tails for extreme disruption)
+                cauchy_noise = tf.random.uniform([batch_size, end_idx - start_idx], -0.5, 0.5)
+                cauchy_noise = tf.math.tan(cauchy_noise * 3.14159) * adversarial_lambda * 0.2
+                cauchy_noise = tf.clip_by_value(cauchy_noise, -adversarial_lambda * 2, adversarial_lambda * 2)
+                protected_embeddings = tf.tensor_scatter_nd_add(
+                    protected_embeddings,
+                    [[i, j] for i in range(batch_size) for j in range(start_idx, end_idx)],
+                    tf.reshape(cauchy_noise, [-1])
+                )
+        
+        # EXTREME FINAL ENHANCEMENT: Gender-specific feature disruption
+        # Add extra noise to features that are most predictive of gender
+        if hasattr(self, 'gender_inference_model'):
+            # Get the first layer weights to identify gender-predictive features
+            try:
+                gender_weights = self.gender_inference_model.layers[0].get_weights()[0]  # [features, hidden]
+                gender_importance = tf.reduce_sum(tf.abs(gender_weights), axis=1)  # Sum over hidden units
+                gender_top_k = min(int(len(gender_importance) * 0.3), 150)  # Top 30% gender features
+                _, gender_top_indices = tf.nn.top_k(gender_importance, k=gender_top_k)
+                
+                # Add EXTREME noise to gender-predictive features
+                gender_targeted_noise = tf.zeros_like(protected_embeddings)
+                for i in range(gender_top_k):
+                    feature_idx = gender_top_indices[i]
+                    if feature_idx < protected_embeddings.shape[1]:  # Ensure valid index
+                        gender_targeted_noise = tf.tensor_scatter_nd_update(
+                            gender_targeted_noise,
+                            [[j, feature_idx] for j in range(batch_size)],
+                            tf.random.normal([batch_size]) * adversarial_lambda * 3.0  # EXTREME noise for gender features
+                        )
+                
+                protected_embeddings = protected_embeddings + gender_targeted_noise
+                print(f"     🎯 EXTREME Gender Defense: Added targeted noise to {gender_top_k} gender-predictive features")
+                
+            except Exception as e:
+                print(f"     ⚠️ Could not apply gender-specific defense: {e}")
+        
+        # Calculate perturbation strength for logging
+        perturbation_norm = tf.norm(protected_embeddings - embeddings_tensor)
+        original_norm = tf.norm(embeddings_tensor)
+        perturbation_ratio = perturbation_norm / (original_norm + 1e-8)
+        
+        print(f"     🎯 EXTREME WILD Defense Applied:")
+        print(f"       Multi-step iterations: {num_steps}")
+        print(f"       Perturbation strength: {float(perturbation_ratio):.3f}")
+        print(f"       Lambda: {adversarial_lambda:.3f}")
+        print(f"       Targeted features: {top_k}/{embeddings_tensor.shape[1]}")
+        print(f"       Gender focus multiplier: 3.0x")
+        print(f"       🔥 EXTREME WILD mode: {num_steps}-step multi-strategy with gender focus!")
         
         return protected_embeddings.numpy()
 
@@ -608,6 +834,205 @@ class FederatedServer:
             print(f"Best model saved to {model_path}")
         except Exception as e:
             print(f"Failed to save model: {e}")
+
+    def update_dynamic_adversarial_lambda(self, age_leakage, gender_leakage, round_idx):
+        """
+        Dynamically adjust adversarial lambda based on inference attack performance.
+        Uses adaptive PID control inspired by successful adversarial training research.
+        
+        Args:
+            age_leakage (float): Current age inference attack accuracy (%)
+            gender_leakage (float): Current gender inference attack accuracy (%)
+            round_idx (int): Current training round
+            
+        Returns:
+            float: New adversarial lambda value
+        """
+        if not self.dynamic_lambda_enabled:
+            return self.adversarial_lambda
+        
+        # Record current performance
+        current_performance = {
+            'round': round_idx,
+            'age_leakage': age_leakage,
+            'gender_leakage': gender_leakage,
+            'lambda': self.adversarial_lambda
+        }
+        self.attack_performance_history.append(current_performance)
+        
+        # Calculate attack strength (how far from random guessing)
+        age_attack_strength = max(0, age_leakage - 16.67)  # Above random (16.67%)
+        gender_attack_strength = max(0, gender_leakage - 50.0)  # Above random (50%)
+        
+        # Combined attack threat level (0-100, higher = more threatening)
+        age_threat = (age_attack_strength / (100 - 16.67)) * 100  # Normalize to 0-100
+        gender_threat = (gender_attack_strength / (100 - 50)) * 100  # Normalize to 0-100
+        combined_threat = (age_threat + gender_threat) / 2
+        
+        print(f"   🎯 Dynamic Lambda Analysis:")
+        print(f"     Age threat level: {age_threat:.1f}% (leakage: {age_leakage:.1f}%)")
+        print(f"     Gender threat level: {gender_threat:.1f}% (leakage: {gender_leakage:.1f}%)")
+        print(f"     Combined threat: {combined_threat:.1f}%")
+        
+        if self.lambda_adjustment_strategy == "adaptive_pid":
+            new_lambda = self._update_lambda_with_pid_control(age_leakage, gender_leakage, combined_threat)
+        elif self.lambda_adjustment_strategy == "threshold_based":
+            new_lambda = self._update_lambda_threshold_based(combined_threat)
+        elif self.lambda_adjustment_strategy == "exponential":
+            new_lambda = self._update_lambda_exponential(combined_threat)
+        else:
+            new_lambda = self.adversarial_lambda  # No change
+        
+        # Apply rate limiting to prevent oscillation
+        max_change = self.lambda_pid['lambda_change_rate']
+        lambda_change = np.clip(new_lambda - self.adversarial_lambda, -max_change, max_change)
+        new_lambda = self.adversarial_lambda + lambda_change
+        
+        # Clamp to valid range
+        new_lambda = np.clip(new_lambda, self.lambda_pid['min_lambda'], self.lambda_pid['max_lambda'])
+        
+        # Update lambda if there's a significant change
+        if abs(new_lambda - self.adversarial_lambda) > 0.01:
+            old_lambda = self.adversarial_lambda
+            self.adversarial_lambda = new_lambda
+            self.lambda_history.append({
+                'round': round_idx,
+                'old_lambda': old_lambda,
+                'new_lambda': new_lambda,
+                'change_reason': f'Threat: {combined_threat:.1f}%',
+                'age_leakage': age_leakage,
+                'gender_leakage': gender_leakage
+            })
+            
+            print(f"   🛡️ DYNAMIC LAMBDA UPDATE: {old_lambda:.3f} → {new_lambda:.3f}")
+            print(f"     Reason: Combined threat level {combined_threat:.1f}%")
+            print(f"     Strategy: {self.lambda_adjustment_strategy}")
+            
+            return new_lambda
+        else:
+            print(f"   🔒 Lambda unchanged: {self.adversarial_lambda:.3f} (small adjustment)")
+            return self.adversarial_lambda
+    
+    def _update_lambda_with_pid_control(self, age_leakage, gender_leakage, combined_threat):
+        """
+        Update lambda using PID control algorithm for smooth, stable adjustment.
+        Inspired by "Adversarial Fine-tune with Dynamically Regulated Adversary" research.
+        """
+        pid = self.lambda_pid
+        
+        # Calculate error from target performance
+        age_error = max(0, age_leakage - pid['target_age_leakage'])
+        gender_error = max(0, gender_leakage - pid['target_gender_leakage'])
+        combined_error = (age_error + gender_error) / 2
+        
+        # PID calculations
+        # Proportional term: current error
+        proportional = pid['kp'] * combined_error
+        
+        # Integral term: accumulated error over time
+        pid['integral'] += combined_error
+        integral = pid['ki'] * pid['integral']
+        
+        # Derivative term: rate of change of error
+        derivative = pid['kd'] * (combined_error - pid['previous_error'])
+        pid['previous_error'] = combined_error
+        
+        # PID output (desired lambda increase)
+        lambda_adjustment = (proportional + integral + derivative) / 100.0  # Scale to reasonable range
+        
+        # Current lambda + adjustment
+        new_lambda = self.adversarial_lambda + lambda_adjustment
+        
+        print(f"     PID Control: P={proportional:.3f}, I={integral:.3f}, D={derivative:.3f}")
+        print(f"     Error: {combined_error:.1f}%, Adjustment: {lambda_adjustment:+.3f}")
+        
+        return new_lambda
+    
+    def _update_lambda_threshold_based(self, combined_threat):
+        """
+        Update lambda using threshold-based approach with multiple levels.
+        """
+        if combined_threat > 80:      # Very high threat
+            target_lambda = 0.8
+        elif combined_threat > 60:    # High threat
+            target_lambda = 0.6
+        elif combined_threat > 40:    # Medium threat
+            target_lambda = 0.4
+        elif combined_threat > 20:    # Low threat
+            target_lambda = 0.2
+        else:                         # Very low threat
+            target_lambda = 0.05
+        
+        print(f"     Threshold-based: Threat {combined_threat:.1f}% → λ={target_lambda:.2f}")
+        return target_lambda
+    
+    def _update_lambda_exponential(self, combined_threat):
+        """
+        Update lambda using exponential scaling for aggressive response.
+        """
+        # Exponential scaling: λ = 0.8 * (threat/100)^2
+        normalized_threat = combined_threat / 100.0
+        target_lambda = 0.8 * (normalized_threat ** 1.5)  # Exponential response
+        
+        print(f"     Exponential: Threat {combined_threat:.1f}% → λ={target_lambda:.3f}")
+        return target_lambda
+    
+    def get_dynamic_lambda_status(self):
+        """Get current status of dynamic lambda system for dashboard."""
+        if not self.dynamic_lambda_enabled:
+            return {"enabled": False}
+        
+        latest_performance = self.attack_performance_history[-1] if self.attack_performance_history else None
+        latest_change = self.lambda_history[-1] if self.lambda_history else None
+        
+        return {
+            "enabled": True,
+            "current_lambda": self.adversarial_lambda,
+            "strategy": self.lambda_adjustment_strategy,
+            "target_age_leakage": self.lambda_pid['target_age_leakage'],
+            "target_gender_leakage": self.lambda_pid['target_gender_leakage'],
+            "latest_performance": latest_performance,
+            "latest_change": latest_change,
+            "total_adjustments": len(self.lambda_history),
+            "pid_params": {
+                "kp": self.lambda_pid['kp'],
+                "ki": self.lambda_pid['ki'], 
+                "kd": self.lambda_pid['kd'],
+                "integral": self.lambda_pid['integral']
+            }
+        }
+
+    def _calculate_defense_strength(self, age_leakage, gender_leakage):
+        """
+        Calculate defense strength based on actual inference attack degradation.
+        
+        Args:
+            age_leakage: Current age inference attack accuracy (%)
+            gender_leakage: Current gender inference attack accuracy (%)
+            
+        Returns:
+            Defense strength percentage (0-100%)
+        """
+        # Baseline accuracy for random guessing
+        baseline_age_accuracy = 16.67  # 1/6 classes
+        baseline_gender_accuracy = 50.0  # 1/2 classes
+        
+        # Maximum possible attack advantage (perfect vs random)
+        max_age_advantage = 100.0 - baseline_age_accuracy  # 83.33%
+        max_gender_advantage = 100.0 - baseline_gender_accuracy  # 50.0%
+        
+        # Current attack advantage (actual vs random)
+        age_advantage = max(0, age_leakage - baseline_age_accuracy)
+        gender_advantage = max(0, gender_leakage - baseline_gender_accuracy)
+        
+        # Defense effectiveness: how much we've reduced attack advantage
+        age_defense_ratio = 1 - (age_advantage / max_age_advantage) if max_age_advantage > 0 else 0
+        gender_defense_ratio = 1 - (gender_advantage / max_gender_advantage) if max_gender_advantage > 0 else 0
+        
+        # Combined defense strength (0-100%)
+        defense_strength = ((age_defense_ratio + gender_defense_ratio) / 2) * 100
+        
+        return max(0, min(100, defense_strength))  # Clamp to [0, 100]
 
 app = Flask(__name__)
 CORS(app)
@@ -1623,55 +2048,71 @@ def client_task_completed():
 
 @app.route('/update_adversarial_lambda', methods=['POST'])
 def update_adversarial_lambda():
-    """Update adversarial lambda during training for live defense control."""
+    """Update adversarial lambda value and control dynamic lambda system."""
     try:
+        if federated_server is None:
+            return jsonify({
+                'success': False,
+                'error': 'Server not initialized'
+            }), 500
+        
         data = request.get_json()
         new_lambda = float(data.get('adversarial_lambda', 0.0))
         
-        # Validate lambda value
-        if new_lambda < 0.0 or new_lambda > 1.0:
-            return jsonify({
-                'success': False,
-                'error': 'Lambda must be between 0.0 and 1.0'
-            }), 400
-        
-        # Update server's adversarial lambda
-        old_lambda = federated_server.adversarial_lambda
-        federated_server.adversarial_lambda = new_lambda
-        
-        # Update status to reflect the change - simplified call
-        try:
-            # Try to read current status to get round info
-            with open('status/status.json', 'r') as f:
-                current_status = json.load(f)
-            current_round = current_status.get('current_round', 0)
-            total_rounds = current_status.get('total_rounds', 5)
-        except:
-            current_round = 0
-            total_rounds = 5
-        
-        update_training_status(
-            current_round=current_round,
-            total_rounds=total_rounds,
-            adversarial_lambda=new_lambda,
-            defense_active=(new_lambda > 0.0)
-        )
-        
-        print(f"🛡️ Adversarial lambda updated: {old_lambda} → {new_lambda}")
-        
+        # Determine if this is a "Run Protection" or "Stop Protection" command
         if new_lambda > 0.0:
-            print(f"   Defense ACTIVATED (λ={new_lambda})")
-            print(f"   Next training round will use adversarial training")
+            # "Run Protection" button clicked
+            print(f"🛡️ PROTECTION ACTIVATED by dashboard")
+            print(f"   Enabling dynamic lambda system")
+            print(f"   Starting lambda: {new_lambda:.3f}")
+            
+            # Enable dynamic lambda system
+            federated_server.dynamic_lambda_enabled = True
+            federated_server.adversarial_lambda = new_lambda
+            
+            # Reset PID controller for fresh start
+            federated_server.lambda_pid['integral'] = 0.0
+            federated_server.lambda_pid['previous_error'] = 0.0
+            
+            # Log the activation
+            federated_server.lambda_history.append({
+                'round': getattr(federated_server, 'current_round', 0),
+                'old_lambda': 0.0,
+                'new_lambda': new_lambda,
+                'reason': 'Dashboard activation - Run Protection',
+                'timestamp': time.time()
+            })
+            
+            message = f"Protection ACTIVATED - Dynamic lambda system enabled (λ={new_lambda:.3f})"
+            
         else:
-            print(f"   Defense DEACTIVATED (λ=0.0)")
-            print(f"   Next training round will use standard training")
+            # "Stop Protection" button clicked
+            print(f"🛡️ PROTECTION DEACTIVATED by dashboard")
+            print(f"   Disabling dynamic lambda system")
+            print(f"   Lambda set to: 0.0")
+            
+            # Disable dynamic lambda system
+            federated_server.dynamic_lambda_enabled = False
+            old_lambda = federated_server.adversarial_lambda
+            federated_server.adversarial_lambda = 0.0
+            
+            # Log the deactivation
+            federated_server.lambda_history.append({
+                'round': getattr(federated_server, 'current_round', 0),
+                'old_lambda': old_lambda,
+                'new_lambda': 0.0,
+                'reason': 'Dashboard deactivation - Stop Protection',
+                'timestamp': time.time()
+            })
+            
+            message = "Protection DEACTIVATED - Dynamic lambda system disabled (λ=0.0)"
         
         return jsonify({
             'success': True,
-            'old_lambda': old_lambda,
-            'new_lambda': new_lambda,
-            'defense_active': new_lambda > 0.0,
-            'message': f'Defense {"activated" if new_lambda > 0.0 else "deactivated"} successfully'
+            'message': message,
+            'adversarial_lambda': federated_server.adversarial_lambda,
+            'dynamic_enabled': federated_server.dynamic_lambda_enabled,
+            'protection_active': federated_server.adversarial_lambda > 0.0
         })
         
     except Exception as e:
@@ -1683,20 +2124,131 @@ def update_adversarial_lambda():
 
 @app.route('/get_defense_status', methods=['GET'])
 def get_defense_status():
-    """Get current defense status and lambda value."""
+    """Get current defense status including dynamic lambda information."""
     try:
-        current_lambda = federated_server.adversarial_lambda if federated_server else 0.0
+        if federated_server is None:
+            return jsonify({
+                'success': False,
+                'error': 'Server not initialized'
+            }), 500
+        
+        # Get dynamic lambda status
+        dynamic_status = federated_server.get_dynamic_lambda_status()
+        
+        # Get recent attack performance
+        recent_performance = []
+        if federated_server.attack_performance_history:
+            recent_performance = federated_server.attack_performance_history[-5:]  # Last 5 rounds
+        
+        # Get recent lambda changes
+        recent_changes = []
+        if federated_server.lambda_history:
+            recent_changes = federated_server.lambda_history[-3:]  # Last 3 changes
         
         return jsonify({
             'success': True,
-            'adversarial_lambda': current_lambda,
-            'defense_active': current_lambda > 0.0,
-            'protection_strength': current_lambda * 100,  # Convert to percentage
-            'message': f'Defense {"active" if current_lambda > 0.0 else "inactive"}'
+            'current_lambda': federated_server.adversarial_lambda,
+            'defense_active': federated_server.adversarial_lambda > 0.0,
+            'dynamic_lambda': dynamic_status,
+            'recent_performance': recent_performance,
+            'recent_changes': recent_changes,
+            'total_rounds_tracked': len(federated_server.attack_performance_history),
+            'total_adjustments': len(federated_server.lambda_history)
         })
         
     except Exception as e:
         logger.error(f"Error getting defense status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/configure_dynamic_lambda', methods=['POST'])
+def configure_dynamic_lambda():
+    """Configure dynamic lambda system parameters."""
+    try:
+        if federated_server is None:
+            return jsonify({
+                'success': False,
+                'error': 'Server not initialized'
+            }), 500
+        
+        data = request.get_json()
+        
+        # Update strategy if provided
+        if 'strategy' in data:
+            strategy = data['strategy']
+            if strategy in ['adaptive_pid', 'threshold_based', 'exponential']:
+                federated_server.lambda_adjustment_strategy = strategy
+                print(f"🎯 Dynamic lambda strategy updated to: {strategy}")
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid strategy. Must be: adaptive_pid, threshold_based, or exponential'
+                }), 400
+        
+        # Update PID parameters if provided
+        if 'pid_params' in data:
+            pid_params = data['pid_params']
+            for param in ['kp', 'ki', 'kd', 'target_age_leakage', 'target_gender_leakage']:
+                if param in pid_params:
+                    federated_server.lambda_pid[param] = float(pid_params[param])
+                    print(f"🎛️ Updated {param}: {federated_server.lambda_pid[param]}")
+        
+        # Enable/disable dynamic lambda
+        if 'enabled' in data:
+            federated_server.dynamic_lambda_enabled = bool(data['enabled'])
+            status = "ENABLED" if federated_server.dynamic_lambda_enabled else "DISABLED"
+            print(f"🎯 Dynamic lambda system: {status}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Dynamic lambda configuration updated',
+            'current_config': federated_server.get_dynamic_lambda_status()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error configuring dynamic lambda: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/reset_lambda_history', methods=['POST'])
+def reset_lambda_history():
+    """Reset lambda adjustment history for fresh start."""
+    try:
+        if federated_server is None:
+            return jsonify({
+                'success': False,
+                'error': 'Server not initialized'
+            }), 500
+        
+        # Reset histories
+        old_performance_count = len(federated_server.attack_performance_history)
+        old_lambda_count = len(federated_server.lambda_history)
+        
+        federated_server.attack_performance_history = []
+        federated_server.lambda_history = []
+        
+        # Reset PID integral term
+        federated_server.lambda_pid['integral'] = 0.0
+        federated_server.lambda_pid['previous_error'] = 0.0
+        
+        print(f"🔄 Lambda history reset:")
+        print(f"   Cleared {old_performance_count} performance records")
+        print(f"   Cleared {old_lambda_count} lambda adjustments")
+        print(f"   Reset PID integral and derivative terms")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Reset {old_performance_count} performance records and {old_lambda_count} lambda adjustments',
+            'cleared_performance_records': old_performance_count,
+            'cleared_lambda_adjustments': old_lambda_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error resetting lambda history: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

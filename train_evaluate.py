@@ -523,11 +523,11 @@ def _train_with_adversarial(fusion_model, adversarial_model,
     else:
         # No adversarial training
         print("   🔓 Standard training (no privacy protection)")
-        return _train_without_adversarial(
-            fusion_model, image_embeddings, tabular_embeddings, labels,
-            val_image_embeddings, val_tabular_embeddings, val_labels,
-            epochs, batch_size, verbose
-        )
+    return _train_without_adversarial(
+        fusion_model, image_embeddings, tabular_embeddings, labels,
+        val_image_embeddings, val_tabular_embeddings, val_labels,
+        epochs, batch_size, verbose
+    )
 
 
 def evaluate_fusion_model(fusion_model, image_embeddings, tabular_embeddings, labels,

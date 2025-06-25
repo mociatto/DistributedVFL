@@ -73,16 +73,16 @@ MODEL_CONFIG = {
         'activation': 'relu'
     },
     
-    # Fusion model (SIMPLIFIED for better generalization)
+    # Fusion model (OPTIMIZED for better learning)
     'fusion_model': {
         'attention_heads': 4,  # Reduced from 8
         'attention_dim': 128,  # Reduced from 256
-        'hidden_units': [256, 64],  # Simplified from [512, 256, 128]
-        'dropout_rate': 0.7,  # Increased to 0.7
-        'advanced_dropout_rate': 0.6,  # Increased to 0.6
-        'l2_reg': 0.05,  # Increased to 0.05
-        'use_cross_attention': False,  # Disabled for simplicity
-        'use_ensemble': False,  # Disabled to reduce complexity
+        'hidden_units': [256, 128, 64],  # Restored from simplified version
+        'dropout_rate': 0.3,  # Reduced from 0.7 - was too aggressive
+        'advanced_dropout_rate': 0.2,  # Reduced from 0.6 - was too aggressive
+        'l2_reg': 0.001,  # Reduced from 0.05 - was too aggressive
+        'use_cross_attention': True,  # Re-enabled for better fusion
+        'use_ensemble': False,  # Keep disabled to reduce complexity
         'ensemble_size': 1,
         'activation': 'relu'
     }
@@ -94,36 +94,36 @@ MODEL_CONFIG = {
 
 TRAINING_CONFIG = {
     # VFL training settings
-    'total_rounds': 2,
-    'epochs_per_round': 2,
+    'total_rounds': 5,  # Increased from 2 to 5 for better training
+    'epochs_per_round': 12,  # Increased from 8 to 12 for stronger learning
     'batch_size': 16,
-    'learning_rate': 0.0005,  # Reduced by 50% for better generalization
+    'learning_rate': 0.002,  # Increased from 0.001 for faster learning
     
     # Client training settings
     'client_epochs': {
-        'image': 15,  # Step 2 & 3 enhanced
-        'tabular': 15  # Step 2 & 3 enhanced
+        'image': 20,  # Increased for stronger client learning
+        'tabular': 20  # Increased for stronger client learning
     },
     'client_batch_size': 32,
-    'client_learning_rate': 0.001,
+    'client_learning_rate': 0.002,  # Increased for faster client learning
     
     # Optimization settings
     'optimizer': 'adam',
     'beta_1': 0.9,
     'beta_2': 0.999,
     'epsilon': 1e-7,
-    'gradient_clip_norm': 1.0,
+    'gradient_clip_norm': 2.0,  # Increased for more aggressive training
     
     # Learning rate scheduling
     'use_lr_scheduling': True,
     'lr_schedule_type': 'step',  # 'step', 'exponential', 'cosine'
-    'lr_decay_factor': 0.5,
-    'lr_decay_epochs': [5, 10],
+    'lr_decay_factor': 0.7,  # Less aggressive decay
+    'lr_decay_epochs': [8, 15],  # Later decay for more aggressive early training
     
-    # Early stopping (VERY aggressive)
+    # Early stopping (More aggressive for faster iteration)
     'use_early_stopping': True,
-    'patience': 1,  # VERY aggressive - stop after 1 epoch without improvement
-    'min_delta': 0.01,  # High threshold for meaningful improvement
+    'patience': 8,  # Increased from 5 to 8 - allow more aggressive training
+    'min_delta': 0.002,  # Keep sensitive to improvement
     'restore_best_weights': True,
     
     # Progressive training strategy
@@ -139,9 +139,9 @@ TRAINING_CONFIG = {
 LOSS_CONFIG = {
     # Contrastive learning (NT-Xent)
     'use_contrastive_loss': True,
-    'contrastive_temperature': 0.5,
-    'contrastive_weight': 0.3,  # (1 - alpha) where alpha=0.7 for classification
-    'classification_weight': 0.7,  # alpha for classification loss
+    'contrastive_temperature': 0.3,  # Lower temperature for sharper distributions
+    'contrastive_weight': 0.4,  # Increased for stronger representation learning
+    'classification_weight': 0.6,  # Balanced with contrastive loss
     
     # Class balancing
     'use_class_weights': True,
@@ -149,13 +149,13 @@ LOSS_CONFIG = {
     
     # Label smoothing
     'use_label_smoothing': True,
-    'label_smoothing_factor': 0.1,
+    'label_smoothing_factor': 0.15,  # Increased for better generalization
     
-    # Regularization (MUCH stronger)
-    'l2_lambda': 0.05,  # Increased 50x for stronger regularization
+    # Regularization (AGGRESSIVE for better defense)
+    'l2_lambda': 0.002,  # Increased from 0.001 for stronger regularization
     'use_mixup': True,  # Step 3 feature
-    'mixup_alpha': 0.4,  # Increased for stronger augmentation
-    'mixup_start_epoch': 1  # Start immediately
+    'mixup_alpha': 0.3,  # Increased from 0.2 for stronger augmentation
+    'mixup_start_epoch': 1  # Start immediately for aggressive training
 }
 
 # =============================================================================
@@ -163,26 +163,26 @@ LOSS_CONFIG = {
 # =============================================================================
 
 GENERALIZATION_CONFIG = {
-    # Noise injection
+    # Noise injection (AGGRESSIVE)
     'use_noise_injection': True,
-    'noise_stddev': 0.1,
-    'noise_probability': 0.3,
+    'noise_stddev': 0.15,  # Increased from 0.1 for stronger noise
+    'noise_probability': 0.4,  # Increased from 0.3 for more frequent noise
     
-    # Advanced dropout
+    # Advanced dropout (AGGRESSIVE)
     'use_advanced_dropout': True,
-    'spatial_dropout_rate': 0.2,
-    'gaussian_dropout_rate': 0.1,
-    'alpha_dropout_rate': 0.2,
+    'spatial_dropout_rate': 0.3,  # Increased from 0.2
+    'gaussian_dropout_rate': 0.15,  # Increased from 0.1
+    'alpha_dropout_rate': 0.25,  # Increased from 0.2
     
-    # Data augmentation (enhanced)
+    # Data augmentation (VERY AGGRESSIVE)
     'use_strong_augmentation': True,
-    'augmentation_probability': 0.9,  # Increased from 0.8
-    'rotation_range': 30,
-    'zoom_range': 0.2,
+    'augmentation_probability': 0.95,  # Increased from 0.9 - nearly always augment
+    'rotation_range': 45,  # Increased from 30 for stronger augmentation
+    'zoom_range': 0.3,  # Increased from 0.2
     'horizontal_flip': True,
     'vertical_flip': True,
-    'brightness_range': [0.8, 1.2],
-    'shear_range': 0.1,
+    'brightness_range': [0.7, 1.3],  # Wider range for stronger augmentation
+    'shear_range': 0.15,  # Increased from 0.1
     
     # Cross-validation
     'use_cross_validation': True,  # Enable for better generalization
@@ -190,19 +190,34 @@ GENERALIZATION_CONFIG = {
     
     # Ensemble methods
     'use_ensemble': True,
-    'ensemble_diversity_loss': 0.01
+    'ensemble_diversity_loss': 0.02  # Increased for stronger diversity
 }
 
 # =============================================================================
-# PRIVACY CONFIGURATION
+# PRIVACY CONFIGURATION (AGGRESSIVE ADVERSARIAL TRAINING)
 # =============================================================================
 
 PRIVACY_CONFIG = {
-    # Adversarial privacy mechanism
-    'adversarial_lambda': 0.0,  # Disabled for Phase 3 (high performance focus)
+    # Adversarial privacy mechanism (ENABLED AND AGGRESSIVE)
+    'adversarial_lambda': 0.0,  # Still starts at 0.0 but dashboard can control
+    'max_adversarial_lambda': 1.0,  # Maximum lambda for WILD defense
+    'adversarial_warmup_rounds': 1,  # Start adversarial training after 1 round
     'use_differential_privacy': False,
     'dp_noise_multiplier': 1.0,
     'dp_l2_norm_clip': 1.0,
+    
+    # WILD adversarial defense settings
+    'wild_defense_enabled': True,  # Enable WILD defense mode
+    'wild_perturbation_steps': 8,  # Multi-step perturbations
+    'wild_step_size_multiplier': 0.8,  # Aggressive step size
+    'wild_noise_multipliers': {
+        'gaussian': 0.6,  # Strong Gaussian noise
+        'uniform': 0.8,   # Strong uniform noise
+        'structured': 1.2,  # Very strong structured noise
+        'targeted': 1.5    # Extremely strong targeted noise
+    },
+    'wild_feature_corruption_ratio': 0.5,  # Corrupt 50% of features
+    'wild_chunk_strategies': 4,  # Use 4 different noise strategies
     
     # Secure aggregation
     'use_secure_aggregation': False,
@@ -210,7 +225,7 @@ PRIVACY_CONFIG = {
 }
 
 # =============================================================================
-# FEDERATED LEARNING CONFIGURATION (True FL Implementation)
+# FEDERATED LEARNING CONFIGURATION (AGGRESSIVE True FL Implementation)
 # =============================================================================
 
 FEDERATED_LEARNING_CONFIG = {
@@ -218,29 +233,29 @@ FEDERATED_LEARNING_CONFIG = {
     'strategy': 'fusion_guided_updates',  # 'fusion_guided_updates', 'federated_avg', 'embeddings_only'
     'enable_true_fl': True,  # Enable iterative client retraining per round
     
-    # FL Round Configuration
-    'total_fl_rounds': 2,  # Total federated learning rounds
-    'client_epochs_per_round': 2,  # Epochs for client retraining per FL round
+    # FL Round Configuration (AGGRESSIVE)
+    'total_fl_rounds': 5,  # Keep at 5 for good training
+    'client_epochs_per_round': 5,  # Increased from 3 to 5 for stronger client learning
     'collect_fresh_embeddings': True,  # Generate new embeddings each round
     
-    # Fusion-Guided Updates Settings
+    # Fusion-Guided Updates Settings (AGGRESSIVE)
     'send_embedding_gradients': True,  # Send gradients w.r.t embeddings to clients
     'send_attention_weights': True,  # Send fusion attention weights as guidance
-    'gradient_scaling_factor': 0.1,  # Scale gradients for stable client updates
-    'attention_weight_threshold': 0.01,  # Minimum attention weight to consider
+    'gradient_scaling_factor': 0.2,  # Increased from 0.1 for stronger guidance
+    'attention_weight_threshold': 0.005,  # Reduced threshold for more guidance
     
-    # Client Update Strategy
-    'client_learning_rate_multiplier': 0.5,  # Reduce LR for guided updates (0.5x base LR)
+    # Client Update Strategy (AGGRESSIVE)
+    'client_learning_rate_multiplier': 0.7,  # Increased from 0.5 for faster adaptation
     'use_guided_training': True,  # Apply server guidance during client training
-    'guidance_weight': 0.3,  # Weight for guidance loss vs local classification loss
+    'guidance_weight': 0.4,  # Increased from 0.3 for stronger guidance
     
     # Performance Tracking
     'track_round_improvements': True,  # Track accuracy improvement per round
-    'min_round_improvement': 0.005,  # Minimum improvement to continue (0.5%)
-    'convergence_patience': 2,  # Stop if no improvement for N rounds
+    'min_round_improvement': 0.001,  # Reduced from 0.002 for more sensitivity
+    'convergence_patience': 4,  # Increased from 3 for more aggressive training
     
     # Communication Settings
-    'max_gradient_norm': 1.0,  # Clip gradients sent to clients
+    'max_gradient_norm': 2.0,  # Increased from 1.0 for stronger gradients
     'compress_communications': False,  # Compress large tensors (future feature)
     
     # Debugging and Monitoring
