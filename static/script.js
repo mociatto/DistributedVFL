@@ -1008,6 +1008,28 @@ function initializeSocketIO() {
             updateAgeLeakageChart(data.age_leakage);
         }
     });
+    
+    // Sample counts updates
+    socket.on('sample_counts_update', function(data) {
+        console.log('📊 Sample counts update:', data);
+        
+        // Update the sample count display elements
+        const trainingElement = document.getElementById('training-samples');
+        const validationElement = document.getElementById('validation-samples');
+        const testElement = document.getElementById('test-samples');
+        
+        if (trainingElement) {
+            trainingElement.textContent = data.training_samples || 0;
+        }
+        if (validationElement) {
+            validationElement.textContent = data.validation_samples || 0;
+        }
+        if (testElement) {
+            testElement.textContent = data.test_samples || 0;
+        }
+        
+        console.log(`📊 Updated sample counts: Training=${data.training_samples}, Validation=${data.validation_samples}, Test=${data.test_samples}`);
+    });
 }
 
 // Initialize charts

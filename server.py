@@ -1419,7 +1419,8 @@ def register_client():
         'current_accuracy': 0.0,
         'performance_history': [],
         'waiting_for_request': False,
-        'current_task': 'idle'
+        'current_task': 'idle',
+        'sample_counts': {}  # Initialize sample counts
     }
     
     print(f"Registered {client_type} client: {client_id}")
@@ -2253,6 +2254,59 @@ def reset_lambda_history():
             'success': False,
             'error': str(e)
         }), 500
+
+@app.route('/update_sample_counts', methods=['POST'])
+def update_sample_counts():
+    """Update sample counts for a client."""
+    global registered_clients
+    
+    data = request.json
+    client_id = data.get('client_id')
+    
+    if not client_id or client_id not in registered_clients:
+        return jsonify({'error': 'Client not registered'}), 400
+    
+    # Update sample counts
+    registered_clients[client_id]['sample_counts'] = {
+        'training_samples': data.get('training_samples', 0),
+        'validation_samples': data.get('validation_samples', 0),
+        'test_samples': data.get('test_samples', 0),
+        'last_updated': time.time()
+    }
+    
+    print(f"Updated sample counts for {client_id}:")
+    print(f"   Training: {data.get('training_samples', 0)}")
+    print(f"   Validation: {data.get('validation_samples', 0)}")
+    print(f"   Test: {data.get('test_samples', 0)}")
+    
+    return jsonify({
+        'status': 'updated',
+        'message': 'Sample counts updated successfully'
+    })
+
+@app.route('/get_sample_counts', methods=['GET'])
+def get_sample_counts():
+    """Get aggregated sample counts from all clients."""
+    global registered_clients
+    
+    total_training = 0
+    total_validation = 0
+    total_test = 0
+    
+    for client_id, client_info in registered_clients.items():
+        if 'sample_counts' in client_info:
+            counts = client_info['sample_counts']
+            total_training += counts.get('training_samples', 0)
+            total_validation += counts.get('validation_samples', 0)
+            total_test += counts.get('test_samples', 0)
+    
+    return jsonify({
+        'training_samples': total_training,
+        'validation_samples': total_validation,
+        'test_samples': total_test,
+        'total_clients': len(registered_clients),
+        'timestamp': time.time()
+    })
 
 def main():
     global auto_shutdown_enabled

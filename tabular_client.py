@@ -273,6 +273,30 @@ class DistributedTabularClient:
             'history': history.history if hasattr(history, 'history') else {}
         }
 
+    def send_sample_counts(self):
+        """Send sample counts to server for dashboard display."""
+        try:
+            sample_counts = {
+                'client_id': self.client_id,
+                'client_type': 'tabular',
+                'training_samples': len(self.train_data['features']),
+                'validation_samples': len(self.val_data['features']),
+                'test_samples': len(self.test_data['features'])
+            }
+            
+            response = requests.post(f"{self.server_url}/update_sample_counts", json=sample_counts)
+            
+            if response.status_code == 200:
+                print(f"Sample counts sent to server")
+                return True
+            else:
+                print(f"Failed to send sample counts: {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"Sample counts error: {str(e)}")
+            return False
+
     def register_with_server(self):
         """Register this client with the federated server."""
         try:
@@ -286,6 +310,10 @@ class DistributedTabularClient:
                 self.is_registered = True
                 print(f"Registered with server")
                 print(f"   Total clients: {result['total_clients']}")
+                
+                # Send sample counts after successful registration
+                self.send_sample_counts()
+                
                 return True
             else:
                 print(f"Registration failed: {response.text}")

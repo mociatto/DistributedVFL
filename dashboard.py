@@ -11,6 +11,7 @@ import subprocess
 import signal
 import platform
 import atexit
+import requests
 
 # Import status configuration
 from status_config import get_status, get_training_status, get_completion_status, get_evaluation_status, get_phase_status, get_federation_status
@@ -118,6 +119,27 @@ def read_fl_status():
             return None
     except Exception as e:
         print(f"Error reading FL status: {e}")
+        return None
+
+def fetch_sample_counts():
+    """Fetch sample counts from the server."""
+    try:
+        response = requests.get('http://localhost:8080/get_sample_counts', timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                'training_samples': data.get('training_samples', 0),
+                'validation_samples': data.get('validation_samples', 0),
+                'test_samples': data.get('test_samples', 0),
+                'total_clients': data.get('total_clients', 0)
+            }
+        else:
+            print(f"Failed to fetch sample counts: {response.status_code}")
+            return None
+    except Exception as e:
+        # Don't print error if server is not running yet
+        if "Connection refused" not in str(e):
+            print(f"Error fetching sample counts: {e}")
         return None
 
 def monitor_fl_training():
@@ -289,6 +311,15 @@ def monitor_fl_training():
         except Exception as e:
             print(f"Error in FL monitoring: {e}")
         
+        # Fetch and emit sample counts from server
+        try:
+            sample_counts = fetch_sample_counts()
+            if sample_counts:
+                socketio.emit('sample_counts_update', sample_counts)
+        except Exception as e:
+            # Silently ignore connection errors when server is not running
+            pass
+        
         # Check every 2 seconds
         time.sleep(2)
 
@@ -445,7 +476,6 @@ def handle_defence_control(data):
     try:
         if action == 'run_protection':
             # Send API request to server to activate defense
-            import requests
             response = requests.post('http://localhost:8080/update_adversarial_lambda', 
                                    json={'adversarial_lambda': 0.3},  # Default protection level
                                    timeout=5)
@@ -468,7 +498,6 @@ def handle_defence_control(data):
                 
         elif action == 'stop_protection':
             # Send API request to server to deactivate defense
-            import requests
             response = requests.post('http://localhost:8080/update_adversarial_lambda', 
                                    json={'adversarial_lambda': 0.0},  # Disable protection
                                    timeout=5)
