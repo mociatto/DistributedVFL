@@ -118,6 +118,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize charts
     initializeCharts();
     
+    // Initialize defense metric boxes with default values
+    console.log('🛡️ Initializing defense metric boxes...');
+    updateMetricBox('age-protection', 0);
+    updateMetricBox('gender-protection', 0);
+    updateMetricBox('age-leakage', 0);
+    updateMetricBox('gender-leakage', 0);
+    
     const tabs = document.querySelectorAll('.tab-item');
     const arrow = document.querySelector('.tab-arrow-indicator');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -2072,8 +2079,42 @@ function updateChartsWithLiveData(data) {
         } else {
             console.log('❌ Age Leakage chart not initialized');
         }
+        
+        // Update Defense Metric Boxes with latest values
+        if (attack.age_leakage && attack.age_leakage.length > 0 && 
+            attack.gender_leakage && attack.gender_leakage.length > 0) {
+            
+            // Get the latest (most recent) leakage values
+            const latestAgeLeakage = attack.age_leakage[attack.age_leakage.length - 1];
+            const latestGenderLeakage = attack.gender_leakage[attack.gender_leakage.length - 1];
+            
+            // Calculate protection values according to user specifications:
+            // Age Protection: when age_leakage = 16.67% (random), protection = 100%
+            // Gender Protection: when gender_leakage = 50% (random), protection = 100%
+            // Age formula: (100 - age_leakage) / (100 - 16.67) * 100, capped at 100%
+            const ageProtection = Math.min(100, Math.max(0, (100 - latestAgeLeakage) / (100 - 16.67) * 100));
+            const genderProtection = Math.min(100, Math.max(0, (100 - latestGenderLeakage) * 2));
+            
+            console.log('🛡️ Updating defense metrics:', {
+                ageLeakage: latestAgeLeakage,
+                genderLeakage: latestGenderLeakage,
+                ageProtection: ageProtection,
+                genderProtection: genderProtection
+            });
+            
+            // Update all 4 metric boxes
+            updateMetricBox('age-protection', Math.round(ageProtection));
+            updateMetricBox('gender-protection', Math.round(genderProtection));
+            updateMetricBox('age-leakage', Math.round(latestAgeLeakage));
+            updateMetricBox('gender-leakage', Math.round(latestGenderLeakage));
+        }
     } else {
         console.log('❌ No attack metrics in data:', data);
+        // Reset defense metric boxes to default values when no data available
+        updateMetricBox('age-protection', 0);
+        updateMetricBox('gender-protection', 0);
+        updateMetricBox('age-leakage', 0);
+        updateMetricBox('gender-leakage', 0);
     }
 }
 
