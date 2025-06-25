@@ -770,6 +770,8 @@ function initializeCharts() {
     initializeDefenseStrengthChart();
     initializeGenderFairnessChart();
     initializeAgeFairnessChart();
+    initializeGenderLeakageChart();
+    initializeAgeLeakageChart();
 }
 
 // Initialize accuracy chart
@@ -1394,6 +1396,198 @@ function initializeAgeFairnessChart() {
     console.log('✅ Age fairness chart initialized');
 }
 
+// Initialize gender leakage chart (line chart)
+function initializeGenderLeakageChart() {
+    const ctx = document.getElementById('gender-leakage-chart');
+    if (!ctx) {
+        console.log('❌ Gender leakage chart canvas not found');
+        return;
+    }
+    
+    console.log('🔄 Initializing gender leakage chart...');
+    
+    charts.genderLeakage = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Gender Leakage (%)',
+                data: [],
+                borderColor: '#EE8945',
+                backgroundColor: 'rgba(238, 137, 69, 0.3)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                pointBackgroundColor: '#EE8945',
+                pointBorderColor: '#FFFFFD',
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'FL Round',
+                        color: '#808080',
+                        font: {
+                            family: 'Montserrat',
+                            weight: '400',
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        color: '#CCCCCC'
+                    },
+                    ticks: {
+                        color: '#808080',
+                        font: {
+                            family: 'Montserrat',
+                            weight: '400',
+                            size: 12
+                        }
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Leakage Accuracy (%)',
+                        color: '#808080',
+                        font: {
+                            family: 'Montserrat',
+                            weight: '400',
+                            size: 12
+                        }
+                    },
+                    beginAtZero: true,
+                    max: 100,
+                    grid: {
+                        color: '#CCCCCC'
+                    },
+                    ticks: {
+                        color: '#808080',
+                        font: {
+                            family: 'Montserrat',
+                            weight: '400',
+                            size: 12
+                        }
+                    }
+                }
+            },
+            animation: {
+                duration: 1000,
+                easing: 'easeInOutQuart'
+            }
+        }
+    });
+    console.log('✅ Gender leakage chart initialized');
+}
+
+// Initialize age leakage chart (line chart)
+function initializeAgeLeakageChart() {
+    const ctx = document.getElementById('age-leakage-chart');
+    if (!ctx) {
+        console.log('❌ Age leakage chart canvas not found');
+        return;
+    }
+    
+    console.log('🔄 Initializing age leakage chart...');
+    
+    charts.ageLeakage = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Age Leakage (%)',
+                data: [],
+                borderColor: '#F7D78E',
+                backgroundColor: 'rgba(247, 215, 142, 0.3)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                pointBackgroundColor: '#F7D78E',
+                pointBorderColor: '#FFFFFD',
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'FL Round',
+                        color: '#808080',
+                        font: {
+                            family: 'Montserrat',
+                            weight: '400',
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        color: '#CCCCCC'
+                    },
+                    ticks: {
+                        color: '#808080',
+                        font: {
+                            family: 'Montserrat',
+                            weight: '400',
+                            size: 12
+                        }
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Leakage Accuracy (%)',
+                        color: '#808080',
+                        font: {
+                            family: 'Montserrat',
+                            weight: '400',
+                            size: 12
+                        }
+                    },
+                    beginAtZero: true,
+                    max: 100,
+                    grid: {
+                        color: '#CCCCCC'
+                    },
+                    ticks: {
+                        color: '#808080',
+                        font: {
+                            family: 'Montserrat',
+                            weight: '400',
+                            size: 12
+                        }
+                    }
+                }
+            },
+            animation: {
+                duration: 1000,
+                easing: 'easeInOutQuart'
+            }
+        }
+    });
+    console.log('✅ Age leakage chart initialized');
+}
+
 // Update dashboard from state
 function updateDashboardFromState(data) {
     if (data.config) {
@@ -1570,5 +1764,52 @@ function updateChartsWithLiveData(data) {
         } else {
             console.log('❌ Age Fairness chart not initialized');
         }
+    }
+    
+    // Update Gender Leakage chart
+    if (data.metrics && data.metrics.attack) {
+        const attack = data.metrics.attack;
+        console.log('🎯 Attack data received:', attack);
+        
+        if (charts.genderLeakage) {
+            if (attack.gender_leakage && attack.gender_leakage.length > 0) {
+                const rounds = attack.gender_leakage.map((_, index) => `Round ${index + 1}`);
+                console.log('🔄 Updating Gender Leakage chart with rounds:', rounds, 'data:', attack.gender_leakage);
+                charts.genderLeakage.data.labels = rounds;
+                charts.genderLeakage.data.datasets[0].data = attack.gender_leakage;
+                charts.genderLeakage.update('none');
+                console.log('✅ Gender Leakage chart updated successfully');
+            } else {
+                // Clear chart and show waiting message
+                charts.genderLeakage.data.labels = [];
+                charts.genderLeakage.data.datasets[0].data = [];
+                charts.genderLeakage.update('none');
+                console.log('🔄 Gender Leakage chart cleared - waiting for data');
+            }
+        } else {
+            console.log('❌ Gender Leakage chart not initialized');
+        }
+        
+        // Update Age Leakage chart
+        if (charts.ageLeakage) {
+            if (attack.age_leakage && attack.age_leakage.length > 0) {
+                const rounds = attack.age_leakage.map((_, index) => `Round ${index + 1}`);
+                console.log('🔄 Updating Age Leakage chart with rounds:', rounds, 'data:', attack.age_leakage);
+                charts.ageLeakage.data.labels = rounds;
+                charts.ageLeakage.data.datasets[0].data = attack.age_leakage;
+                charts.ageLeakage.update('none');
+                console.log('✅ Age Leakage chart updated successfully');
+            } else {
+                // Clear chart and show waiting message
+                charts.ageLeakage.data.labels = [];
+                charts.ageLeakage.data.datasets[0].data = [];
+                charts.ageLeakage.update('none');
+                console.log('🔄 Age Leakage chart cleared - waiting for data');
+            }
+        } else {
+            console.log('❌ Age Leakage chart not initialized');
+        }
+    } else {
+        console.log('❌ No attack metrics in data:', data);
     }
 } 

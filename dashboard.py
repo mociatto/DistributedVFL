@@ -49,8 +49,8 @@ live_metrics = {
         'age_accuracy': []
     },
     'attack': {
-        'gender_leakage': [],
-        'age_leakage': [],
+        'gender_leakage': [],  # Start empty - will populate with real FL data
+        'age_leakage': [],     # Start empty - will populate with real FL data
         'connection_status': True
     },
     'defence': {
@@ -81,6 +81,8 @@ def read_fl_status():
                 'precision_recall': data.get('metrics', {}).get('precision_recall', 0) * 100 if data.get('metrics', {}).get('precision_recall') else 0,
                 'gender_fairness': data.get('metrics', {}).get('gender_fairness', [0.0, 0.0]),
                 'age_fairness': data.get('metrics', {}).get('age_fairness', [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+                'age_leakage': data.get('metrics', {}).get('age_leakage', 16.67),
+                'gender_leakage': data.get('metrics', {}).get('gender_leakage', 50.0),
                 'defense_strength': data.get('metrics', {}).get('defense_strength', 0) if data.get('metrics', {}).get('defense_strength') else 0,
                 'progress_percent': data.get('progress_percent', 0),
                 'phase': data.get('phase', 'waiting'),
@@ -112,6 +114,8 @@ def monitor_fl_training():
                     live_metrics['performance']['f1_score'] = []
                     live_metrics['performance']['precision_recall'] = []
                     live_metrics['defence']['defence_strength'] = []
+                    live_metrics['attack']['age_leakage'] = []
+                    live_metrics['attack']['gender_leakage'] = []
                     last_round_seen = 0  # Reset round counter
                     print("🧹 Cleared mock data - ready for real FL data")
                 elif not fl_status['training_active'] and training_active:
@@ -148,6 +152,10 @@ def monitor_fl_training():
                     live_metrics['performance']['gender_accuracy'] = fl_status['gender_fairness']  # Replace, not append
                     live_metrics['performance']['age_accuracy'] = fl_status['age_fairness']  # Replace, not append
                     
+                    # Add to attack metrics (leakage data)
+                    live_metrics['attack']['age_leakage'].append(fl_status['age_leakage'])
+                    live_metrics['attack']['gender_leakage'].append(fl_status['gender_leakage'])
+                    
                     # Add to defense metrics
                     live_metrics['defence']['defence_strength'].append(fl_status['defense_strength'])
                     
@@ -155,6 +163,11 @@ def monitor_fl_training():
                     for metric in ['live_accuracy', 'live_loss', 'f1_score', 'precision_recall']:
                         if len(live_metrics['performance'][metric]) > 10:
                             live_metrics['performance'][metric] = live_metrics['performance'][metric][-10:]
+                    
+                    # Keep attack metrics limited too
+                    for metric in ['age_leakage', 'gender_leakage']:
+                        if len(live_metrics['attack'][metric]) > 10:
+                            live_metrics['attack'][metric] = live_metrics['attack'][metric][-10:]
                     
                     # Keep defense metrics limited too
                     if len(live_metrics['defence']['defence_strength']) > 10:
@@ -172,15 +185,8 @@ def monitor_fl_training():
                 
                 # Generate some mock data for attack charts only
                 if training_active:
-                    # Add mock data for attack metrics only (defense uses real data)
-                    if random.random() > 0.7:  # 30% chance to add new data point
-                        live_metrics['attack']['gender_leakage'].append(random.randint(10, 40))
-                        live_metrics['attack']['age_leakage'].append(random.randint(15, 35))
-                        
-                        # Keep only last 10 points for attack metrics
-                        for metric in live_metrics['attack']:
-                            if isinstance(live_metrics['attack'][metric], list) and len(live_metrics['attack'][metric]) > 10:
-                                live_metrics['attack'][metric] = live_metrics['attack'][metric][-10:]
+                    # Mock data generation removed - now using real leakage data from inference attacks
+                    pass
             
             else:
                 # No status file found

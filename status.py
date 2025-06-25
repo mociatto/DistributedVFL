@@ -12,7 +12,7 @@ import os
 def update_training_status(current_round, total_rounds, accuracy=None, loss=None,
                           f1_score=None, precision=None, recall=None, precision_recall=None,
                           defense_strength=None, client_weights=None, phase="training",
-                          gender_fairness=None, age_fairness=None):
+                          gender_fairness=None, age_fairness=None, age_leakage=None, gender_leakage=None):
     """
     Update the training status JSON file with current progress.
     
@@ -30,6 +30,8 @@ def update_training_status(current_round, total_rounds, accuracy=None, loss=None
         phase (str): Current training phase
         gender_fairness (list): Gender fairness scores [female_acc, male_acc]
         age_fairness (list): Age fairness scores for 6 age groups
+        age_leakage (float): Age inference attack success rate (%)
+        gender_leakage (float): Gender inference attack success rate (%)
     """
     status = {
         "current_round": current_round,
@@ -47,7 +49,9 @@ def update_training_status(current_round, total_rounds, accuracy=None, loss=None
             "precision_recall": round(precision_recall, 4) if precision_recall is not None else None,
             "defense_strength": round(defense_strength, 4) if defense_strength is not None else None,
             "gender_fairness": [round(g, 2) for g in gender_fairness] if gender_fairness is not None else [0.0, 0.0],
-            "age_fairness": [round(a, 2) for a in age_fairness] if age_fairness is not None else [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            "age_fairness": [round(a, 2) for a in age_fairness] if age_fairness is not None else [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "age_leakage": round(age_leakage, 2) if age_leakage is not None else 16.67,
+            "gender_leakage": round(gender_leakage, 2) if gender_leakage is not None else 50.0
         },
         "client_weights": client_weights if client_weights is not None else None,
         "status": "running" if current_round < total_rounds else "completed"
