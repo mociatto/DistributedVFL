@@ -509,17 +509,111 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            // Send action to backend
+            // Send action to backend via Socket.IO
             console.log('Protection action:', action);
-            // Here you would typically make an API call to your backend
-            // fetch('/api/protection', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({ action })
-            // });
+            if (socket && socket.connected) {
+                socket.emit('defence_control', {
+                    action: action === 'run' ? 'run_protection' : 'stop_protection'
+                });
+                console.log('Defense control sent to server');
+            } else {
+                console.error('Socket not connected - cannot send defense control');
+            }
         });
     });
+    
+    // Listen for defense status updates from server
+    if (socket) {
+        socket.on('defence_status', function(data) {
+            console.log('Defense status update received:', data);
+            
+            // Update UI based on status
+            if (data.error) {
+                console.error('Defense control error:', data.error);
+                // Show error message to user
+                showNotification('Defense Error: ' + data.message, 'error');
+            } else {
+                // Update protection status display
+                updateProtectionStatus(data.protection_active, data.lambda_value);
+                
+                // Show success message
+                showNotification(data.message, 'success');
+            }
+        });
+    }
 });
+
+// Function to update protection status display
+function updateProtectionStatus(isActive, lambdaValue) {
+    // Update button states
+    const runBtn = document.querySelector('.protection-btn[data-action="run"]');
+    const stopBtn = document.querySelector('.protection-btn[data-action="stop"]');
+    
+    if (isActive) {
+        runBtn.classList.add('selected');
+        stopBtn.classList.remove('selected');
+    } else {
+        stopBtn.classList.add('selected');
+        runBtn.classList.remove('selected');
+    }
+    
+    // Update defense indicator
+    const defenseIndicator = document.getElementById('defense-indicator');
+    if (defenseIndicator) {
+        if (isActive) {
+            defenseIndicator.classList.add('active');
+        } else {
+            defenseIndicator.classList.remove('active');
+        }
+    }
+    
+    console.log(`Protection status updated: ${isActive ? 'Active' : 'Inactive'} (λ=${lambdaValue || 0})`);
+}
+
+// Function to show notifications
+function showNotification(message, type = 'info') {
+    // Create notification element if it doesn't exist
+    let notification = document.getElementById('notification');
+    if (!notification) {
+        notification = document.createElement('div');
+        notification.id = 'notification';
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            max-width: 300px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        `;
+        document.body.appendChild(notification);
+    }
+    
+    // Set message and style based on type
+    notification.textContent = message;
+    switch (type) {
+        case 'success':
+            notification.style.backgroundColor = '#4CAF50';
+            break;
+        case 'error':
+            notification.style.backgroundColor = '#F44336';
+            break;
+        default:
+            notification.style.backgroundColor = '#2196F3';
+    }
+    
+    // Show notification
+    notification.style.opacity = '1';
+    
+    // Hide after 4 seconds
+    setTimeout(() => {
+        notification.style.opacity = '0';
+    }, 4000);
+}
 
 // Function to update metric values and colors
 function updateMetricBox(id, value) {
@@ -889,15 +983,23 @@ function initializeSocketIO() {
     // Fairness data updates
     socket.on('fairness_update', function(data) {
         console.log('⚖️ Fairness update:', data);
-        updateGenderFairnessChart(data.gender_fairness);
-        updateAgeFairnessChart(data.age_fairness);
+        if (typeof updateGenderFairnessChart === 'function') {
+            updateGenderFairnessChart(data.gender_fairness);
+        }
+        if (typeof updateAgeFairnessChart === 'function') {
+            updateAgeFairnessChart(data.age_fairness);
+        }
     });
     
     // Leakage data updates
     socket.on('leakage_update', function(data) {
         console.log('🔓 Leakage update:', data);
-        updateGenderLeakageChart(data.gender_leakage);
-        updateAgeLeakageChart(data.age_leakage);
+        if (typeof updateGenderLeakageChart === 'function') {
+            updateGenderLeakageChart(data.gender_leakage);
+        }
+        if (typeof updateAgeLeakageChart === 'function') {
+            updateAgeLeakageChart(data.age_leakage);
+        }
     });
 }
 
@@ -1972,5 +2074,56 @@ function updateChartsWithLiveData(data) {
         }
     } else {
         console.log('❌ No attack metrics in data:', data);
+    }
+}
+
+// Update functions for charts (missing functions that were causing console errors)
+function updateGenderFairnessChart(genderFairnessData) {
+    if (charts.genderFairness && genderFairnessData) {
+        console.log('📊 Updating gender fairness chart with data:', genderFairnessData);
+        charts.genderFairness.data.datasets[0].data = genderFairnessData;
+        charts.genderFairness.update('none'); // No animation for live updates
+    }
+}
+
+function updateAgeFairnessChart(ageFairnessData) {
+    if (charts.ageFairness && ageFairnessData) {
+        console.log('📊 Updating age fairness chart with data:', ageFairnessData);
+        charts.ageFairness.data.datasets[0].data = ageFairnessData;
+        charts.ageFairness.update('none'); // No animation for live updates
+    }
+}
+
+function updateGenderLeakageChart(genderLeakage) {
+    if (charts.genderLeakage && typeof genderLeakage === 'number') {
+        console.log('📊 Updating gender leakage chart with value:', genderLeakage);
+        const currentRound = charts.genderLeakage.data.labels.length + 1;
+        charts.genderLeakage.data.labels.push(`Round ${currentRound}`);
+        charts.genderLeakage.data.datasets[0].data.push(genderLeakage);
+        
+        // Keep only last 10 points for performance
+        if (charts.genderLeakage.data.labels.length > 10) {
+            charts.genderLeakage.data.labels.shift();
+            charts.genderLeakage.data.datasets[0].data.shift();
+        }
+        
+        charts.genderLeakage.update('none'); // No animation for live updates
+    }
+}
+
+function updateAgeLeakageChart(ageLeakage) {
+    if (charts.ageLeakage && typeof ageLeakage === 'number') {
+        console.log('📊 Updating age leakage chart with value:', ageLeakage);
+        const currentRound = charts.ageLeakage.data.labels.length + 1;
+        charts.ageLeakage.data.labels.push(`Round ${currentRound}`);
+        charts.ageLeakage.data.datasets[0].data.push(ageLeakage);
+        
+        // Keep only last 10 points for performance
+        if (charts.ageLeakage.data.labels.length > 10) {
+            charts.ageLeakage.data.labels.shift();
+            charts.ageLeakage.data.datasets[0].data.shift();
+        }
+        
+        charts.ageLeakage.update('none'); // No animation for live updates
     }
 } 

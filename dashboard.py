@@ -439,21 +439,62 @@ def handle_training_control(data):
 
 @socketio.on('defence_control')
 def handle_defence_control(data):
-    """Handle defence protection controls"""
+    """Handle defence protection controls with live server communication"""
     action = data.get('action')
     
-    if action == 'run_protection':
-        live_metrics['defence']['protection_active'] = True
-        emit('defence_status', {
-            'protection_active': True,
-            'message': 'Protection running - Confusing data inference'
-        }, broadcast=True)
-        
-    elif action == 'stop_protection':
-        live_metrics['defence']['protection_active'] = False
+    try:
+        if action == 'run_protection':
+            # Send API request to server to activate defense
+            import requests
+            response = requests.post('http://localhost:8080/update_adversarial_lambda', 
+                                   json={'adversarial_lambda': 0.3},  # Default protection level
+                                   timeout=5)
+            
+            if response.status_code == 200:
+                result = response.json()
+                live_metrics['defence']['protection_active'] = True
+                emit('defence_status', {
+                    'protection_active': True,
+                    'lambda_value': result.get('new_lambda', 0.3),
+                    'message': 'Protection activated - Adversarial training enabled'
+                }, broadcast=True)
+                print("🛡️ Dashboard activated server defense (λ=0.3)")
+            else:
+                emit('defence_status', {
+                    'protection_active': False,
+                    'error': 'Failed to activate server defense',
+                    'message': 'Error: Could not communicate with server'
+                }, broadcast=True)
+                
+        elif action == 'stop_protection':
+            # Send API request to server to deactivate defense
+            import requests
+            response = requests.post('http://localhost:8080/update_adversarial_lambda', 
+                                   json={'adversarial_lambda': 0.0},  # Disable protection
+                                   timeout=5)
+            
+            if response.status_code == 200:
+                result = response.json()
+                live_metrics['defence']['protection_active'] = False
+                emit('defence_status', {
+                    'protection_active': False,
+                    'lambda_value': result.get('new_lambda', 0.0),
+                    'message': 'Protection deactivated - Standard training resumed'
+                }, broadcast=True)
+                print("🛡️ Dashboard deactivated server defense (λ=0.0)")
+            else:
+                emit('defence_status', {
+                    'protection_active': False,
+                    'error': 'Failed to deactivate server defense',
+                    'message': 'Error: Could not communicate with server'
+                }, broadcast=True)
+                
+    except Exception as e:
+        print(f"❌ Error in defense control: {e}")
         emit('defence_status', {
             'protection_active': False,
-            'message': 'Protection stopped - Data inference without protection'
+            'error': str(e),
+            'message': f'Error: {str(e)}'
         }, broadcast=True)
 
 def kill_process_on_port(port=5050):

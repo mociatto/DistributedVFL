@@ -16,7 +16,7 @@ def update_training_status(current_round, total_rounds, accuracy=None, loss=None
                           f1_score=None, precision=None, recall=None, precision_recall=None,
                           defense_strength=None, client_weights=None, phase="training",
                           gender_fairness=None, age_fairness=None, age_leakage=None, gender_leakage=None,
-                          status_key=None, status_message=None):
+                          status_key=None, status_message=None, adversarial_lambda=None, defense_active=None):
     """
     Update the training status JSON file with current progress.
     
@@ -85,6 +85,8 @@ def update_training_status(current_round, total_rounds, accuracy=None, loss=None
         "age_fairness": [round(a, 2) for a in age_fairness] if age_fairness is not None else [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         "age_leakage": round(age_leakage, 2) if age_leakage is not None else 16.67,
         "gender_leakage": round(gender_leakage, 2) if gender_leakage is not None else 50.0,
+        "adversarial_lambda": round(adversarial_lambda, 3) if adversarial_lambda is not None else 0.0,
+        "defense_active": defense_active if defense_active is not None else False,
         "client_weights": client_weights if client_weights is not None else None,
         "status": "running" if current_round < total_rounds else "completed"
     }
