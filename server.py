@@ -1452,7 +1452,8 @@ def get_fl_config():
         'client_epochs_per_round': fl_config['client_epochs_per_round'],
         'client_learning_rate_multiplier': fl_config['client_learning_rate_multiplier'],
         'guidance_weight': fl_config['guidance_weight'],
-        'base_learning_rate': config['training']['client_learning_rate']
+        'base_learning_rate': config['training']['client_learning_rate'],
+        'data_percentage': config['data']['data_percentage']  # Add this so clients get the correct percentage
     })
 
 @app.route('/send_global_guidance', methods=['POST'])

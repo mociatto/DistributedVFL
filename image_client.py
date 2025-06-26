@@ -283,6 +283,8 @@ class DistributedImageClient:
         return {
             'accuracy': final_accuracy,
             'loss': final_loss,
+            'final_val_acc': final_accuracy,
+            'final_val_loss': final_loss,
             'history': history.history if hasattr(history, 'history') else {}
         }
 
@@ -347,6 +349,13 @@ class DistributedImageClient:
                 print(f"   Rounds: {self.fl_config['total_fl_rounds']}")
                 print(f"   Epochs per round: {self.fl_config['client_epochs_per_round']}")
                 print(f"   Learning rate multiplier: {self.fl_config['client_learning_rate_multiplier']}")
+                
+                # Update data percentage if provided by server
+                if 'data_percentage' in self.fl_config:
+                    old_percentage = self.data_percentage
+                    self.data_percentage = self.fl_config['data_percentage']
+                    print(f"   Data percentage updated from server: {old_percentage*100:.1f}% -> {self.data_percentage*100:.1f}%")
+                    
                 return True
             else:
                 print(f"Failed to get FL config: {response.text}")
@@ -928,9 +937,19 @@ def main():
         
         # Step 4: Get FL configuration
         print("Getting FL configuration...")
+        old_data_percentage = client.data_percentage
         if not client.get_fl_config():
             print("Failed to get FL configuration")
             return 1
+        
+        # Step 4.5: Reload data if percentage changed  
+        if client.data_percentage != old_data_percentage:
+            print(f"Reloading data with updated percentage: {client.data_percentage*100:.1f}%")
+            client.load_data(data_dir=args.data_dir)
+            
+            # Send updated sample counts to server for dashboard
+            print("Sending updated sample counts to server...")
+            client.send_sample_counts()
         
         # Step 5: Run passive client mode
         print("Starting passive client mode...")
