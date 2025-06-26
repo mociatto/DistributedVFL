@@ -1,19 +1,20 @@
-# GuardianFL: Distributed Federated Learning for Skin Cancer Detection
+# HYBRIDVFL: Distributed Federated Learning for Skin Cancer Detection
 
-A **distributed federated learning system** for medical image analysis using the HAM10000 skin lesion dataset. This system allows multiple computers to train AI models together while keeping their data private and separate.
+A distributed federated learning system for medical image analysis using the HAM10000 skin lesion dataset. This system allows multimodal clients to train AI models together while keeping their data private and separate. All metrics and plots visulized on a beautiful live dashboard.
 
 ## What This Does
 
-- **Analyzes skin cancer images** using advanced AI models
-- **Keeps data private** - each computer keeps its own data
-- **Trains together** - computers collaborate without sharing raw data
-- **Works on multiple machines** - perfect for hospitals or research labs
+- Analyzes skin cancer images using advanced AI models
+- Keeps data private - each client keeps its own data
+- Trains together - clients collaborate without sharing raw data
+- Works on multiple machines - perfect for hospitals or research labs
+- Automated live dashboard handles full control on model configurations and running.
 
 ---
 
 ## How It Works
 
-The system has **3 parts** that run on separate computers:
+The system has 3 parts that run on separate computers:
 
 ```
 SERVER (Port 8080)              IMAGE CLIENT (Port 8081)        TABULAR CLIENT (Port 8082)
@@ -23,7 +24,7 @@ SERVER (Port 8080)              IMAGE CLIENT (Port 8081)        TABULAR CLIENT (
 │ • No raw data needed   │       │ • Generates features │       │ • Generates features │
 ```
 
-Each computer communicates through **HTTP**.
+Each computer communicates through HTTP.
 
 ---
 
@@ -48,7 +49,7 @@ pip install -r requirements.txt
 
 **Server Computer:**
 ```
-GuardianFL/
+DistributedVFL/
 ├── server.py
 ├── models.py
 ├── config.py
@@ -57,7 +58,7 @@ GuardianFL/
 
 **Image Client Computer:**
 ```
-GuardianFL/
+DistributedVFL/
 ├── image_client.py  
 ├── data/
 │   ├── HAM10000_images_part_1/
@@ -67,7 +68,7 @@ GuardianFL/
 
 **Tabular Client Computer:**
 ```
-GuardianFL/
+DistributedVFL/
 ├── tabular_client.py
 ├── data/
 │   └── HAM10000_metadata.csv
@@ -78,9 +79,23 @@ GuardianFL/
 
 ## Running the System
 
-### Single Computer Testing (Easy Start)
+### Control Everything on Live Dashboard
 
-If you want to test everything on one computer first:
+If you want to control and monitor the training process through a user-friendly interface:
+
+**Terminal** - Start Dashboard:
+```bash
+python3 dashboard.py
+```
+
+After adjusting the data percentage, federated rounds, and epochs per round on the home tab, click the play button to start the system. All components will launch automatically, allowing you to monitor metrics and plots in real-time. The web dashboard will automatically open in your default browser at:
+```
+http://localhost:8080
+```
+
+### Single Computer Testing
+
+If you want to test everything on one computer without using designed interface:
 
 **Terminal 1** - Start Server:
 ```bash
@@ -97,9 +112,9 @@ python3 image_client.py
 python3 tabular_client.py
 ```
 
-The system will automatically start training when both clients connect!
+The system will automatically start training when both clients connect.
 
-### Multiple Computer Setup (Real Deployment)
+### Multiple Computer Setup
 
 #### Step 1: Configure Network
 
@@ -126,17 +141,35 @@ python3 server.py --mode distributed
 ```bash
 python3 image_client.py --mode distributed --server_host 192.168.1.100
 ```
-*(Replace `192.168.1.100` with your server's actual IP)*
 
 **On Tabular Client Computer:**
 ```bash
 python3 tabular_client.py --mode distributed --server_host 192.168.1.100
 ```
-*(Replace `192.168.1.100` with your server's actual IP)*
+
+Replace `192.168.1.100` with your server's actual IP.
 
 ---
 
-## Important Network Info
+### Defense Controls
+
+The dashboard includes live defense controls on the Defense tab:
+
+- **Run Protection**: Activates adversarial defense mechanisms during training to reduce inference attacks on sensitive attributes (age/gender). Sets adversarial lambda to 0.3.
+- **Stop Protection**: Disables defense mechanisms and sets adversarial lambda to 0.0.
+
+These controls work during active training and affect the next training round.
+
+### Running the Model
+
+1. Start all three components (server, image client, tabular client)
+2. Training begins automatically when both clients connect
+3. Monitor progress through the dashboard's various tabs
+4. Use defense controls to manage privacy protection during training
+
+---
+
+## Network Configuration
 
 ### Ports Used
 - **8080** - Server (main coordinator)
@@ -144,7 +177,7 @@ python3 tabular_client.py --mode distributed --server_host 192.168.1.100
 - **8082** - Tabular Client (when running locally)
 
 ### Firewall Settings
-Make sure these ports are **open** on your network. If you can't connect, check your firewall.
+Make sure these ports are open on your network.
 
 ### Finding Your Computer's IP
 **Windows:**
@@ -156,8 +189,6 @@ ipconfig
 ```bash
 ifconfig
 ```
-
-Look for something like `192.168.1.100` or `10.0.0.5`.
 
 ---
 
@@ -177,23 +208,24 @@ In `config.py`, you can adjust:
 'total_fl_rounds': 5,     # Better results
 ```
 
-### Advanced Features (Already Built-In)
+### Advanced Features
 
-The system includes sophisticated AI features:
-- **EfficientNetV2** - Advanced image processing  
-- **Transformer Fusion** - Smart data combination
-- **Attention Mechanisms** - Focuses on important features
-- **Class Balance Handling** - Works with uneven data
-- **Transfer Learning** - Uses pre-trained models
+The system includes:
+- EfficientNetV2 - Advanced image processing  
+- Transformer Fusion - Smart data combination
+- Attention Mechanisms - Focuses on important features
+- Class Balance Handling - Works with uneven data
+- Transfer Learning - Uses pre-trained models
+- Live Defense System - Privacy protection during training
 
 ---
 
 ## Troubleshooting
 
 ### "Connection refused" 
-- Start the **server first**
-- Check if the **IP address is correct**
-- Make sure **firewall allows the ports**
+- Start the server first
+- Check if the IP address is correct
+- Make sure firewall allows the ports
 
 ### "Failed to register"
 - Server must be running before clients
@@ -201,9 +233,9 @@ The system includes sophisticated AI features:
 - Verify port 8080 is open
 
 ### "Training failed"
-- Make sure **both clients** are connected
-- Check that **data files exist** in the right folders
-- Ensure enough **disk space** for models
+- Make sure both clients are connected
+- Check that data files exist in the right folders
+- Ensure enough disk space for models
 
 ### Slow Performance
 - Reduce `data_percentage` in config for faster testing
@@ -214,10 +246,10 @@ The system includes sophisticated AI features:
 ## For Medical/Research Use
 
 This system is designed for:
-- **Hospitals** with multiple locations
-- **Research collaborations** between institutions  
-- **Privacy-sensitive** medical data analysis
-- **Distributed AI** without sharing raw patient data
+- Hospitals with multiple locations
+- Research collaborations between institutions  
+- Privacy-sensitive medical data analysis
+- Distributed AI without sharing raw patient data
 
 The federated learning approach means each site keeps their data private while contributing to a shared AI model.
 
