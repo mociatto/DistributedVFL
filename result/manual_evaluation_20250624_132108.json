@@ -1,0 +1,67 @@
+{
+  "final_test_accuracy": 0.16,
+  "final_test_f1_macro": 0.07186147186147186,
+  "final_test_f1_weighted": 0.07042424242424243,
+  "test_samples": 100,
+  "strategy": "fusion_guided_updates",
+  "model_parameters": 308103,
+  "per_class_results": {
+    "akiec": {
+      "precision": 0.19230769230769232,
+      "recall": 0.7142857142857143,
+      "f1-score": 0.30303030303030304,
+      "support": 14.0
+    },
+    "bcc": {
+      "precision": 0.13043478260869565,
+      "recall": 0.42857142857142855,
+      "f1-score": 0.2,
+      "support": 14.0
+    },
+    "bkl": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 14.0
+    },
+    "df": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 15.0
+    },
+    "mel": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 14.0
+    },
+    "nv": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 14.0
+    },
+    "vasc": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 15.0
+    },
+    "accuracy": 0.16,
+    "macro avg": {
+      "precision": 0.04610606784519828,
+      "recall": 0.16326530612244897,
+      "f1-score": 0.07186147186147186,
+      "support": 100.0
+    },
+    "weighted avg": {
+      "precision": 0.04518394648829432,
+      "recall": 0.16,
+      "f1-score": 0.07042424242424243,
+      "support": 100.0
+    }
+  },
+  "evaluation_method": "manual_embeddings_based",
+  "timestamp": "2025-06-24T13:21:08.064801"
+}

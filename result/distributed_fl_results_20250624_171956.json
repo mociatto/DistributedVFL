@@ -1,0 +1,8 @@
+{
+  "final_test_accuracy": 0.14,
+  "final_test_f1": 0.07435118073415946,
+  "total_rounds": 2,
+  "clients": 2,
+  "strategy": "fusion_guided_updates",
+  "timestamp": 1750781996.1488252
+}
