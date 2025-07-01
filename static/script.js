@@ -639,12 +639,12 @@ function updateMetricBox(id, value) {
         else if (value < 75) state = 'medium';
         else state = 'high';
     } else if (id === 'age-leakage') {
-        if (value < 20) state = 'low-inverse';
-        else if (value < 40) state = 'medium-inverse';
+        if (value < 25) state = 'low-inverse';
+        else if (value < 45) state = 'medium-inverse';
         else state = 'high-inverse';
     } else if (id === 'gender-leakage') {
-        if (value < 60) state = 'low-inverse';
-        else if (value < 70) state = 'medium-inverse';
+        if (value < 65) state = 'low-inverse';
+        else if (value < 75) state = 'medium-inverse';
         else state = 'high-inverse';
     }
     
